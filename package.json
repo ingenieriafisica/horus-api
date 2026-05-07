@@ -1,0 +1,35 @@
+{
+  "name": "peoplecount-api",
+  "version": "1.0.0",
+  "description": "API multitenant para conteo de personas con ESP32 + YOLO",
+  "scripts": {
+    "build": "nest build",
+    "start": "node dist/main",
+    "start:dev": "ts-node-dev --respawn --transpile-only src/main.ts",
+    "start:debug": "ts-node-dev --respawn --inspect --transpile-only src/main.ts",
+    "lint": "eslint \"{src,apps,libs,test}/**/*.ts\"",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@nestjs-modules/ioredis": "^2.0.2",
+    "@nestjs/common": "^10.0.0",
+    "@nestjs/core": "^10.0.0",
+    "@nestjs/jwt": "^10.2.0",
+    "@nestjs/mongoose": "^10.0.0",
+    "@nestjs/platform-express": "^10.0.0",
+    "@nestjs/swagger": "^7.3.0",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.1",
+    "ioredis": "^5.3.2",
+    "mongoose": "^8.4.0",
+    "reflect-metadata": "^0.2.0",
+    "rxjs": "^7.8.1"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^10.0.0",
+    "@nestjs/testing": "^10.0.0",
+    "@types/node": "^20.0.0",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.4.0"
+  }
+}
