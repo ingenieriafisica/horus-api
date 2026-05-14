@@ -25,9 +25,12 @@ import { AuthController } from './auth/auth.controller';
 
 // Guards
 import { JwtAuthGuard, RolesGuard } from './common/guards';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
+    // --- JWT (para autenticación) ───────────────────────────────────────────────
+    AuthModule, // importa el módulo de autenticación que configura JwtModule
     // ── MongoDB ──────────────────────────────────────────────────────────────
     MongooseModule.forRootAsync({
       useFactory: () => ({
@@ -70,15 +73,6 @@ import { JwtAuthGuard, RolesGuard } from './common/guards';
           },
         };
       },
-    }),
-
-    // ── JWT ───────────────────────────────────────────────────────────────────
-    JwtModule.registerAsync({
-      global: true,
-      useFactory: () => ({
-        secret: process.env.JWT_SECRET ?? 'change-me-in-production',
-        signOptions: { expiresIn: '8h' },
-      }),
     }),
   ],
 

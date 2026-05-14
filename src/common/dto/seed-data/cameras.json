@@ -1,0 +1,42 @@
+[
+  {
+    "uid_hardware": "ESP32-CAM-001",
+    "companyId": "techcorp_id",
+    "branchIndex": 0,
+    "ubicacion_cam": "Entrada Principal - Piso 1",
+    "ip_local": "192.168.1.100",
+    "firmware_version": "2.1.5"
+  },
+  {
+    "uid_hardware": "ESP32-CAM-002",
+    "companyId": "techcorp_id",
+    "branchIndex": 0,
+    "ubicacion_cam": "Salida de Emergencia - Piso 2",
+    "ip_local": "192.168.1.101",
+    "firmware_version": "2.1.5"
+  },
+  {
+    "uid_hardware": "ESP32-CAM-003",
+    "companyId": "techcorp_id",
+    "branchIndex": 1,
+    "ubicacion_cam": "Entrada Principal - Medellín",
+    "ip_local": "192.168.2.100",
+    "firmware_version": "2.1.4"
+  },
+  {
+    "uid_hardware": "ESP32-CAM-004",
+    "companyId": "retailplus_id",
+    "branchIndex": 0,
+    "ubicacion_cam": "Entrada Tienda - Cali",
+    "ip_local": "192.168.3.100",
+    "firmware_version": "2.1.5"
+  },
+  {
+    "uid_hardware": "ESP32-CAM-005",
+    "companyId": "retailplus_id",
+    "branchIndex": 0,
+    "ubicacion_cam": "Zona de Cajas",
+    "ip_local": "192.168.3.101",
+    "firmware_version": "2.1.5"
+  }
+]

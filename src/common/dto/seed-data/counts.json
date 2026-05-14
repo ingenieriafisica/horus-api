@@ -1,0 +1,50 @@
+[
+  {
+    "uid_hardware": "ESP32-CAM-001",
+    "timestamp_utc": "2026-05-08T08:30:00Z",
+    "count_in": 15,
+    "count_out": 3
+  },
+  {
+    "uid_hardware": "ESP32-CAM-001",
+    "timestamp_utc": "2026-05-08T09:00:00Z",
+    "count_in": 28,
+    "count_out": 5
+  },
+  {
+    "uid_hardware": "ESP32-CAM-001",
+    "timestamp_utc": "2026-05-08T10:00:00Z",
+    "count_in": 42,
+    "count_out": 12
+  },
+  {
+    "uid_hardware": "ESP32-CAM-002",
+    "timestamp_utc": "2026-05-08T08:30:00Z",
+    "count_in": 5,
+    "count_out": 8
+  },
+  {
+    "uid_hardware": "ESP32-CAM-002",
+    "timestamp_utc": "2026-05-08T09:00:00Z",
+    "count_in": 10,
+    "count_out": 15
+  },
+  {
+    "uid_hardware": "ESP32-CAM-003",
+    "timestamp_utc": "2026-05-08T08:00:00Z",
+    "count_in": 20,
+    "count_out": 4
+  },
+  {
+    "uid_hardware": "ESP32-CAM-004",
+    "timestamp_utc": "2026-05-08T09:30:00Z",
+    "count_in": 35,
+    "count_out": 8
+  },
+  {
+    "uid_hardware": "ESP32-CAM-005",
+    "timestamp_utc": "2026-05-08T10:15:00Z",
+    "count_in": 45,
+    "count_out": 18
+  }
+]

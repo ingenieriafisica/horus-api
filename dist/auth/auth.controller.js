@@ -11,59 +11,69 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
+var _a;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AuthController = void 0;
 const common_1 = require("@nestjs/common");
+const express_1 = require("express");
 const auth_service_1 = require("./auth.service");
-const dto_1 = require("../common/dto");
+const auth_dto_1 = require("./dto/auth.dto");
+const public_decorator_1 = require("./decorators/public.decorator");
+const jwt_auth_guard_1 = require("./jwt-auth.guard");
 let AuthController = class AuthController {
-    constructor(svc) {
-        this.svc = svc;
+    constructor(authService) {
+        this.authService = authService;
     }
     requestOtp(dto) {
-        return this.svc.requestOtp(dto);
+        return this.authService.requestOtp(dto);
     }
     verifyOtp(dto) {
-        return this.svc.verifyOtp(dto);
+        return this.authService.verifyOtp(dto);
     }
-    refresh(refreshToken) {
-        return this.svc.refresh(refreshToken);
+    refresh(dto) {
+        return this.authService.refresh(dto.refresh_token);
     }
-    logout(email) {
-        return this.svc.logout(email);
+    logout(req) {
+        const token = req.headers.authorization.split(' ')[1];
+        const user = req.user;
+        return this.authService.logout(token, user.email);
     }
 };
 exports.AuthController = AuthController;
 __decorate([
+    (0, public_decorator_1.Public)(),
     (0, common_1.Post)('otp/request'),
     (0, common_1.HttpCode)(common_1.HttpStatus.OK),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [dto_1.RequestOtpDto]),
+    __metadata("design:paramtypes", [auth_dto_1.RequestOtpDto]),
     __metadata("design:returntype", void 0)
 ], AuthController.prototype, "requestOtp", null);
 __decorate([
+    (0, public_decorator_1.Public)(),
     (0, common_1.Post)('otp/verify'),
     (0, common_1.HttpCode)(common_1.HttpStatus.OK),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [dto_1.VerifyOtpDto]),
+    __metadata("design:paramtypes", [auth_dto_1.VerifyOtpDto]),
     __metadata("design:returntype", void 0)
 ], AuthController.prototype, "verifyOtp", null);
 __decorate([
+    (0, public_decorator_1.Public)(),
     (0, common_1.Post)('refresh'),
     (0, common_1.HttpCode)(common_1.HttpStatus.OK),
-    __param(0, (0, common_1.Body)('refresh_token')),
+    __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [auth_dto_1.RefreshTokenDto]),
     __metadata("design:returntype", void 0)
 ], AuthController.prototype, "refresh", null);
 __decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.Post)('logout'),
     (0, common_1.HttpCode)(common_1.HttpStatus.OK),
-    __param(0, (0, common_1.Body)('email')),
+    __param(0, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [typeof (_a = typeof express_1.Request !== "undefined" && express_1.Request) === "function" ? _a : Object]),
     __metadata("design:returntype", void 0)
 ], AuthController.prototype, "logout", null);
 exports.AuthController = AuthController = __decorate([

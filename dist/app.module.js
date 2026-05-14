@@ -9,7 +9,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AppModule = void 0;
 const common_1 = require("@nestjs/common");
 const mongoose_1 = require("@nestjs/mongoose");
-const jwt_1 = require("@nestjs/jwt");
 const core_1 = require("@nestjs/core");
 const ioredis_1 = require("@nestjs-modules/ioredis");
 const company_schema_1 = require("./companies/entities/company.schema");
@@ -22,12 +21,14 @@ const cameras_controller_1 = require("./cameras/cameras.controller");
 const counts_controller_1 = require("./counts/counts.controller");
 const auth_controller_1 = require("./auth/auth.controller");
 const guards_1 = require("./common/guards");
+const auth_module_1 = require("./auth/auth.module");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
 exports.AppModule = AppModule = __decorate([
     (0, common_1.Module)({
         imports: [
+            auth_module_1.AuthModule,
             mongoose_1.MongooseModule.forRootAsync({
                 useFactory: () => ({
                     uri: process.env.MONGODB_URI ?? 'mongodb://nadc1000:8LdYHRlhQqNE55mH@ac-3u1ryyc-shard-00-00.j7vokv6.mongodb.net:27017,ac-3u1ryyc-shard-00-01.j7vokv6.mongodb.net:27017,ac-3u1ryyc-shard-00-02.j7vokv6.mongodb.net:27017/peoplecount?ssl=true&replicaSet=atlas-ce31v3-shard-0&authSource=admin&appName=Cluster0',
@@ -63,13 +64,6 @@ exports.AppModule = AppModule = __decorate([
                         },
                     };
                 },
-            }),
-            jwt_1.JwtModule.registerAsync({
-                global: true,
-                useFactory: () => ({
-                    secret: process.env.JWT_SECRET ?? 'change-me-in-production',
-                    signOptions: { expiresIn: '8h' },
-                }),
             }),
         ],
         controllers: [

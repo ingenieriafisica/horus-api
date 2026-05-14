@@ -1,16 +1,4 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Patch,
-  Delete,
-  Body,
-  Param,
-  Query,
-  ParseIntPipe,
-  HttpCode,
-  HttpStatus,
-} from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, ParseIntPipe, HttpCode, HttpStatus } from '@nestjs/common';
 import { CamerasService } from './cameras.service';
 import { CreateCameraDto, UpdateCameraDto, HeartbeatDto } from '../common/dto';
 

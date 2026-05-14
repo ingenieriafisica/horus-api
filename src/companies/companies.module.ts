@@ -1,19 +1,19 @@
 // ─── companies.module.ts ──────────────────────────────────────────────────────
-import { Module as NestModule } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Company, CompanySchema } from './entities/company.schema';
 import { CompaniesService } from './companies.service';
 import { CompaniesController } from './companies.controller';
 
-// @NestModule()  ← descomenta al usar
-export class CompaniesModule {
-  static imports = [
+@Module({
+  imports: [
     MongooseModule.forFeature([{ name: Company.name, schema: CompanySchema }]),
-  ];
-  static providers = [CompaniesService];
-  static controllers = [CompaniesController];
-  static exports = [CompaniesService];
-}
+  ],
+  providers: [CompaniesService],
+  controllers: [CompaniesController],
+  exports: [CompaniesService],
+})
+export class CompaniesModule {}
 
 // ─── cameras.module.ts ────────────────────────────────────────────────────────
 import { Camera, CameraSchema } from '../companies/entities/company.schema';

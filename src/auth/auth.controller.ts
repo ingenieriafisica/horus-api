@@ -1,59 +1,68 @@
-import {
-  Controller,
-  Post,
-  Body,
-  HttpCode,
-  HttpStatus,
-  Req,
-} from '@nestjs/common';
+import { Controller, Post, Body, Req, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
+import { Request } from 'express';
 import { AuthService } from './auth.service';
-import { RequestOtpDto, VerifyOtpDto } from '../common/dto';
+import { RequestOtpDto, VerifyOtpDto, RefreshTokenDto } from './dto/auth.dto';
+import { Public } from './decorators/public.decorator';
+import { JwtAuthGuard } from './jwt-auth.guard';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly svc: AuthService) {}
+  constructor(private readonly authService: AuthService) {}
 
   /**
    * POST /auth/otp/request
-   * Solicita un código OTP. El usuario recibe el código por email.
-   * Body: { email }
+   * Público — solicita el envío de un OTP al correo registrado.
    */
+  @Public()
   @Post('otp/request')
   @HttpCode(HttpStatus.OK)
   requestOtp(@Body() dto: RequestOtpDto) {
-    return this.svc.requestOtp(dto);
+    return this.authService.requestOtp(dto);
   }
 
   /**
    * POST /auth/otp/verify
-   * Verifica el OTP y devuelve access_token + refresh_token.
-   * Body: { email, code }
+   * Público — verifica el OTP y devuelve access_token + refresh_token.
+   *
+   * Respuesta:
+   * {
+   *   access_token:  "eyJ...",
+   *   refresh_token: "eyJ...",
+   *   token_type:    "Bearer",
+   *   expires_in:    28800,        // segundos (8h)
+   *   user: { email, role, companyId, companyName, branchIndexes }
+   * }
    */
+  @Public()
   @Post('otp/verify')
   @HttpCode(HttpStatus.OK)
   verifyOtp(@Body() dto: VerifyOtpDto) {
-    return this.svc.verifyOtp(dto);
+    return this.authService.verifyOtp(dto);
   }
 
   /**
    * POST /auth/refresh
-   * Renueva el access_token usando el refresh_token.
-   * Body: { refresh_token }
+   * Público (usa refresh_token, no access_token).
+   * Renueva el access_token sin pedir el código OTP de nuevo.
    */
+  @Public()
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
-  refresh(@Body('refresh_token') refreshToken: string) {
-    return this.svc.refresh(refreshToken);
+  refresh(@Body() dto: RefreshTokenDto) {
+    return this.authService.refresh(dto.refresh_token);
   }
 
   /**
    * POST /auth/logout
-   * Invalida el refresh_token del usuario en Redis.
-   * Body: { email }
+   * Protegido — requiere access_token válido.
+   * Invalida tanto el access_token como el refresh_token almacenado.
    */
+  @UseGuards(JwtAuthGuard)
   @Post('logout')
   @HttpCode(HttpStatus.OK)
-  logout(@Body('email') email: string) {
-    return this.svc.logout(email);
+  logout(@Req() req: Request) {
+    const token = req.headers.authorization!.split(' ')[1];
+    const user  = (req as any).user as { email: string };
+    return this.authService.logout(token, user.email);
   }
 }

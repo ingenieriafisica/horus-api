@@ -1,0 +1,26 @@
+[
+  {
+    "nombre": "TechCorp Colombia",
+    "nit": "900.123.456-7",
+    "dbName": "techcorp_db",
+    "plan": "enterprise",
+    "contacto_email": "admin@techcorp.com",
+    "logo_url": "https://techcorp.com/logo.png"
+  },
+  {
+    "nombre": "RetailPlus Ltda",
+    "nit": "800.456.789-2",
+    "dbName": "retailplus_db",
+    "plan": "pro",
+    "contacto_email": "contacto@retailplus.com",
+    "logo_url": "https://retailplus.com/logo.png"
+  },
+  {
+    "nombre": "Startups Hub",
+    "nit": "900.789.123-4",
+    "dbName": "startupshub_db",
+    "plan": "starter",
+    "contacto_email": "info@startupshub.com",
+    "logo_url": "https://startupshub.com/logo.png"
+  }
+]

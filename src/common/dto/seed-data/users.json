@@ -1,0 +1,32 @@
+[
+  {
+    "email": "juan.admin@techcorp.com",
+    "role": "admin",
+    "branchIndexes": [0, 1]
+  },
+  {
+    "email": "maria.manager@techcorp.com",
+    "role": "manager",
+    "branchIndexes": [0]
+  },
+  {
+    "email": "carlos.viewer@techcorp.com",
+    "role": "viewer",
+    "branchIndexes": [0, 1, 2]
+  },
+  {
+    "email": "ana.admin@retailplus.com",
+    "role": "admin",
+    "branchIndexes": [0, 1]
+  },
+  {
+    "email": "luis.manager@retailplus.com",
+    "role": "manager",
+    "branchIndexes": [0]
+  },
+  {
+    "email": "sofia.viewer@startupshub.com",
+    "role": "viewer",
+    "branchIndexes": [0]
+  }
+]

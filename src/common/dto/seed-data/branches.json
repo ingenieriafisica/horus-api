@@ -1,0 +1,26 @@
+[
+  {
+    "nombre": "Oficina Central Bogotá",
+    "ciudad": "Bogotá",
+    "direccion": "Calle 72 No 10-50, Edificio Empresarial Zona Rosa",
+    "timezone": "America/Bogota"
+  },
+  {
+    "nombre": "Sucursal Medellín",
+    "ciudad": "Medellín",
+    "direccion": "Carrera 50 No 44-180, Centro Comercial San Alejo",
+    "timezone": "America/Bogota"
+  },
+  {
+    "nombre": "Sucursal Cali",
+    "ciudad": "Cali",
+    "direccion": "Avenida 6 Norte No 21-45, Torre El Peñol",
+    "timezone": "America/Bogota"
+  },
+  {
+    "nombre": "Sucursal Barranquilla",
+    "ciudad": "Barranquilla",
+    "direccion": "Calle 84 No 52-100, Centro Ejecutivo",
+    "timezone": "America/Bogota"
+  }
+]
