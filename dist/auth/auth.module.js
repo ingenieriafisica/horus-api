@@ -44,14 +44,14 @@ exports.AuthModule = AuthModule = __decorate([
         ],
         controllers: [auth_controller_1.AuthController],
         providers: [
-            auth_service_1.AuthService,
             mail_service_1.MailService,
             token_blacklist_service_1.TokenBlacklistService,
+            auth_service_1.AuthService,
             jwt_strategy_1.JwtStrategy,
             { provide: core_1.APP_GUARD, useClass: jwt_auth_guard_1.JwtAuthGuard },
             { provide: core_1.APP_GUARD, useClass: roles_guard_1.RolesGuard },
         ],
-        exports: [auth_service_1.AuthService, token_blacklist_service_1.TokenBlacklistService],
+        exports: [auth_service_1.AuthService, token_blacklist_service_1.TokenBlacklistService, mail_service_1.MailService],
     })
 ], AuthModule);
 //# sourceMappingURL=auth.module.js.map

@@ -1,7 +1,7 @@
 import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types, PipelineStage } from 'mongoose';
-import { Count, CountDocument } from '../companies/entities/company.schema';
+import { Count, CountDocument } from './entities/count.schema';
 import { CamerasService } from '../cameras/cameras.service';
 import { IngestCountDto, CountQueryDto } from '../common/dto';
 
@@ -102,7 +102,6 @@ export class CountsService {
 
     const series = await this.countModel.aggregate(pipeline);
 
-    // Calcular totales del período
     const totals = series.reduce(
       (acc, row) => {
         acc.total_in += row.total_in;
@@ -112,7 +111,22 @@ export class CountsService {
       { total_in: 0, total_out: 0 },
     );
 
-    return { series, totals, from, to, granularity };
+    const data = series.map((row) => ({
+      timestamp: this.formatBucket(row._id, granularity),
+      count_in: row.total_in ?? 0,
+      count_out: row.total_out ?? 0,
+    }));
+
+    return {
+      data,
+      metadata: {
+        total: totals.total_in + totals.total_out,
+        period: granularity,
+      },
+      from,
+      to,
+      granularity,
+    };
   }
 
   /** Resumen rápido para las tarjetas KPI del dashboard */
@@ -240,6 +254,28 @@ export class CountsService {
       { $limit: 1 },
     ]);
     return result ? { hour: result._id.hour, total_in: result.total_in } : null;
+  }
+
+  private formatBucket(group: Record<string, unknown>, granularity: Granularity): string {
+    if (!group || typeof group !== 'object') {
+      return new Date().toISOString();
+    }
+
+    const year = Number((group as Record<string, unknown>).year ?? new Date().getFullYear());
+    const month = Number((group as Record<string, unknown>).month ?? 1);
+    const day = Number((group as Record<string, unknown>).day ?? 1);
+    const hour = Number((group as Record<string, unknown>).hour ?? 0);
+    const week = Number((group as Record<string, unknown>).week ?? 1);
+
+    if (granularity === 'week') {
+      return new Date(Date.UTC(year, 0, 4 + (week - 1) * 7)).toISOString();
+    }
+
+    if (granularity === 'hour') {
+      return new Date(Date.UTC(year, month - 1, day, hour, 0, 0)).toISOString();
+    }
+
+    return new Date(Date.UTC(year, month - 1, day)).toISOString();
   }
 
   private buildGroupId(granularity: Granularity) {

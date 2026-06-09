@@ -12,6 +12,7 @@ const mongoose_1 = require("@nestjs/mongoose");
 const core_1 = require("@nestjs/core");
 const ioredis_1 = require("@nestjs-modules/ioredis");
 const company_schema_1 = require("./companies/entities/company.schema");
+const count_schema_1 = require("./counts/entities/count.schema");
 const companies_service_1 = require("./companies/companies.service");
 const cameras_service_1 = require("./cameras/cameras.service");
 const counts_service_1 = require("./counts/counts.service");
@@ -37,7 +38,7 @@ exports.AppModule = AppModule = __decorate([
             mongoose_1.MongooseModule.forFeature([
                 { name: company_schema_1.Company.name, schema: company_schema_1.CompanySchema },
                 { name: company_schema_1.Camera.name, schema: company_schema_1.CameraSchema },
-                { name: company_schema_1.Count.name, schema: company_schema_1.CountSchema },
+                { name: count_schema_1.Count.name, schema: count_schema_1.CountSchema },
             ]),
             ioredis_1.RedisModule.forRootAsync({
                 useFactory: () => {

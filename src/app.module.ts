@@ -5,11 +5,8 @@ import { APP_GUARD } from '@nestjs/core';
 import { RedisModule } from '@nestjs-modules/ioredis';
 
 // Schemas
-import {
-  Company, CompanySchema,
-  Camera, CameraSchema,
-  Count, CountSchema,
-} from './companies/entities/company.schema';
+import { Company, CompanySchema, Camera, CameraSchema } from './companies/entities/company.schema';
+import { Count, CountSchema } from './counts/entities/count.schema';
 
 // Services
 import { CompaniesService } from './companies/companies.service';

@@ -1,5 +1,5 @@
 import { Model } from 'mongoose';
-import { CountDocument } from '../companies/entities/company.schema';
+import { CountDocument } from './entities/count.schema';
 import { CamerasService } from '../cameras/cameras.service';
 import { IngestCountDto, CountQueryDto } from '../common/dto';
 export declare class CountsService {
@@ -10,8 +10,15 @@ export declare class CountsService {
         ok: boolean;
     }>;
     query(dto: CountQueryDto): Promise<{
-        series: any[];
-        totals: any;
+        data: {
+            timestamp: string;
+            count_in: any;
+            count_out: any;
+        }[];
+        metadata: {
+            total: any;
+            period: "hour" | "day" | "week" | "month";
+        };
         from: string;
         to: string;
         granularity: "hour" | "day" | "week" | "month";
@@ -37,5 +44,6 @@ export declare class CountsService {
     compareByBranch(companyId: string, from: string, to: string): Promise<any[]>;
     private sumPeriod;
     private getPeakHour;
+    private formatBucket;
     private buildGroupId;
 }

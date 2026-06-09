@@ -104,7 +104,7 @@ let MailService = MailService_1 = class MailService {
     `;
         try {
             await this.transporter.sendMail({
-                from: `"PeopleCount" <${process.env.MAIL_USER}>`,
+                from: process.env.MAIL_FROM || `"PeopleCount" <${process.env.MAIL_USER}>`,
                 to,
                 subject,
                 html,

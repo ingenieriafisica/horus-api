@@ -7,8 +7,15 @@ export declare class CountsController {
         ok: boolean;
     }>;
     query(dto: CountQueryDto): Promise<{
-        series: any[];
-        totals: any;
+        data: {
+            timestamp: string;
+            count_in: any;
+            count_out: any;
+        }[];
+        metadata: {
+            total: any;
+            period: "hour" | "day" | "week" | "month";
+        };
         from: string;
         to: string;
         granularity: "hour" | "day" | "week" | "month";

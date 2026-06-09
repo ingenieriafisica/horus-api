@@ -16,7 +16,7 @@ exports.CountsService = void 0;
 const common_1 = require("@nestjs/common");
 const mongoose_1 = require("@nestjs/mongoose");
 const mongoose_2 = require("mongoose");
-const company_schema_1 = require("../companies/entities/company.schema");
+const count_schema_1 = require("./entities/count.schema");
 const cameras_service_1 = require("../cameras/cameras.service");
 let CountsService = class CountsService {
     constructor(countModel, camerasService) {
@@ -86,7 +86,21 @@ let CountsService = class CountsService {
             acc.total_out += row.total_out;
             return acc;
         }, { total_in: 0, total_out: 0 });
-        return { series, totals, from, to, granularity };
+        const data = series.map((row) => ({
+            timestamp: this.formatBucket(row._id, granularity),
+            count_in: row.total_in ?? 0,
+            count_out: row.total_out ?? 0,
+        }));
+        return {
+            data,
+            metadata: {
+                total: totals.total_in + totals.total_out,
+                period: granularity,
+            },
+            from,
+            to,
+            granularity,
+        };
     }
     async getKpis(companyId, branchIndex) {
         const now = new Date();
@@ -180,6 +194,23 @@ let CountsService = class CountsService {
         ]);
         return result ? { hour: result._id.hour, total_in: result.total_in } : null;
     }
+    formatBucket(group, granularity) {
+        if (!group || typeof group !== 'object') {
+            return new Date().toISOString();
+        }
+        const year = Number(group.year ?? new Date().getFullYear());
+        const month = Number(group.month ?? 1);
+        const day = Number(group.day ?? 1);
+        const hour = Number(group.hour ?? 0);
+        const week = Number(group.week ?? 1);
+        if (granularity === 'week') {
+            return new Date(Date.UTC(year, 0, 4 + (week - 1) * 7)).toISOString();
+        }
+        if (granularity === 'hour') {
+            return new Date(Date.UTC(year, month - 1, day, hour, 0, 0)).toISOString();
+        }
+        return new Date(Date.UTC(year, month - 1, day)).toISOString();
+    }
     buildGroupId(granularity) {
         const base = {
             year: { $year: '$timestamp' },
@@ -201,7 +232,7 @@ let CountsService = class CountsService {
 exports.CountsService = CountsService;
 exports.CountsService = CountsService = __decorate([
     (0, common_1.Injectable)(),
-    __param(0, (0, mongoose_1.InjectModel)(company_schema_1.Count.name)),
+    __param(0, (0, mongoose_1.InjectModel)(count_schema_1.Count.name)),
     __metadata("design:paramtypes", [mongoose_2.Model,
         cameras_service_1.CamerasService])
 ], CountsService);
