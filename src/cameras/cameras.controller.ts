@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Patch, Delete, Body, Param, Query, ParseIntPipe, HttpCode, HttpStatus } from '@nestjs/common';
 import { CamerasService } from './cameras.service';
 import { CreateCameraDto, UpdateCameraDto, HeartbeatDto } from '../common/dto';
+import { Public } from '../auth/decorators/public.decorator';
 
 @Controller('cameras')
 export class CamerasController {
@@ -52,11 +53,8 @@ export class CamerasController {
     return this.svc.deactivate(id, companyId);
   }
 
-  /**
-   * Heartbeat enviado por el ESP32 periódicamente.
-   * No requiere JWT — usa uid_hardware para identificarse.
-   * Actualiza last_seen, ip y firmware.
-   */
+  /** Heartbeat del ESP32 — público, autenticado por uid_hardware */
+  @Public()
   @Post('heartbeat')
   @HttpCode(HttpStatus.OK)
   heartbeat(@Body() dto: HeartbeatDto) {

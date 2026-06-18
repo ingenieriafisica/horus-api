@@ -1,24 +1,16 @@
 import { Controller, Post, Get, Body, Query, HttpCode, HttpStatus, ParseIntPipe, Optional } from '@nestjs/common';
 import { CountsService } from './counts.service';
 import { IngestCountDto, CountQueryDto } from '../common/dto';
+import { Public } from '../auth/decorators/public.decorator';
 
 @Controller('counts')
 export class CountsController {
   constructor(private readonly svc: CountsService) {}
 
   /**
-   * POST /counts/ingest
-   * Endpoint público (protegido por uid_hardware) que llama el ESP32
-   * para reportar cada evento de conteo de personas.
-   *
-   * El ESP32 debe enviar:
-   * {
-   *   "uid_hardware": "ABC123",
-   *   "timestamp_utc": "2025-05-07T14:30:00Z",
-   *   "count_in": 3,
-   *   "count_out": 1
-   * }
+   * POST /counts/ingest — público, autenticado solo por uid_hardware (ESP32)
    */
+  @Public()
   @Post('ingest')
   @HttpCode(HttpStatus.OK)
   ingest(@Body() dto: IngestCountDto) {

@@ -1,5 +1,10 @@
 [
   {
+    "email": "nadc10@hotmail.com",
+    "role": "admin",
+    "branchIndexes": [0, 1]
+  },
+  {
     "email": "juan.admin@techcorp.com",
     "role": "admin",
     "branchIndexes": [0, 1]

@@ -1,4 +1,3 @@
-// ─── jwt-auth.guard.ts ────────────────────────────────────────────────────────
 import {
   Injectable,
   CanActivate,
@@ -39,7 +38,7 @@ export class JwtAuthGuard implements CanActivate {
     const token = authHeader.split(' ')[1];
     try {
       const payload = this.jwtService.verify(token);
-      request.user = payload; // { sub, companyId, role, branchIndexes }
+      request.user = payload;
       return true;
     } catch {
       throw new UnauthorizedException('Token inválido o expirado');
@@ -83,17 +82,32 @@ export class RolesGuard implements CanActivate {
 
 // ─── tenant.guard.ts ──────────────────────────────────────────────────────────
 /**
- * Verifica que el companyId en la query/params coincida con
- * el companyId del JWT, salvo que el rol sea 'super_admin'.
+ * Garantiza aislamiento multitenant: el companyId en la petición debe
+ * coincidir con el companyId del JWT, salvo que el rol sea 'super_admin'.
+ * Se salta en rutas marcadas con @Public().
  */
 @Injectable()
 export class TenantGuard implements CanActivate {
+  constructor(private reflector: Reflector) {}
+
   canActivate(context: ExecutionContext): boolean {
+    // Respetar rutas públicas (ESP32 heartbeat / ingest, auth OTP…)
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (isPublic) return true;
+
     const request = context.switchToHttp().getRequest();
-    const user = request.user;
+    const user = request.user as {
+      sub?: string;
+      email?: string;
+      companyId?: string;
+      role?: string;
+    } | undefined;
 
     if (!user) throw new UnauthorizedException();
-    if (user.role === 'super_admin') return true; // super admin tiene acceso global
+    if (user.role === 'super_admin') return true;
 
     const requestedCompanyId =
       request.params?.companyId ||
@@ -102,7 +116,9 @@ export class TenantGuard implements CanActivate {
       request.body?.companyId;
 
     if (requestedCompanyId && requestedCompanyId !== user.companyId) {
-      throw new UnauthorizedException('No autorizado para acceder a esta empresa');
+      throw new UnauthorizedException(
+        'No autorizado para acceder a esta empresa',
+      );
     }
 
     return true;
