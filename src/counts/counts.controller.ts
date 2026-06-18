@@ -1,7 +1,8 @@
-import { Controller, Post, Get, Body, Query, HttpCode, HttpStatus, ParseIntPipe, Optional } from '@nestjs/common';
+import { Controller, Post, Get, Body, Query, HttpCode, HttpStatus, UseGuards } from '@nestjs/common';
 import { CountsService } from './counts.service';
 import { IngestCountDto, CountQueryDto } from '../common/dto';
 import { Public } from '../auth/decorators/public.decorator';
+import { Roles, RolesGuard } from '../auth/roles.guard';
 
 @Controller('counts')
 export class CountsController {
@@ -75,5 +76,36 @@ export class CountsController {
     @Query('to') to: string,
   ) {
     return this.svc.compareByBranch(companyId, from, to);
+  }
+
+  /**
+   * GET /counts/by-radar
+   * Conteos discriminados por DISPOSITIVO (radar) en un rango de fechas.
+   * Opcional: branchIndex para acotar a una sede. Devuelve nombre/uid del radar.
+   */
+  @Get('by-radar')
+  byRadar(
+    @Query('companyId') companyId: string,
+    @Query('from') from: string,
+    @Query('to') to: string,
+    @Query('branchIndex') branchIndex?: string,
+  ) {
+    const idx = branchIndex !== undefined ? parseInt(branchIndex, 10) : undefined;
+    return this.svc.byRadar(companyId, from, to, idx);
+  }
+
+  /**
+   * GET /counts/by-company
+   * Conteos discriminados por EMPRESA (vista global). Cruza tenants, por lo que
+   * queda restringido a super_admin.
+   */
+  @Get('by-company')
+  @UseGuards(RolesGuard)
+  @Roles('super_admin')
+  byCompany(
+    @Query('from') from: string,
+    @Query('to') to: string,
+  ) {
+    return this.svc.byCompany(from, to);
   }
 }

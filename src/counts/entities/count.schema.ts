@@ -15,6 +15,13 @@ export class Count {
   @Prop({ required: true })
   timestamp!: Date;
 
+  /**
+   * Metadatos de discriminación del conteo. Permiten segmentar los conteos por:
+   *   • empresa    → meta.companyId   (multitenancy)
+   *   • sede       → meta.branchIndex (índice de la sede dentro de la empresa)
+   *   • dispositivo→ meta.radarId     (radar ESP32 que generó el evento)
+   * Es el metaField de la colección de series temporales.
+   */
   @Prop({
     type: {
       companyId:   { type: Types.ObjectId, ref: 'Company', required: true },
@@ -22,6 +29,7 @@ export class Count {
       branchIndex: { type: Number, required: true },
     },
     required: true,
+    _id: false,
   })
   meta!: {
     companyId:   Types.ObjectId;
@@ -37,6 +45,14 @@ export class Count {
 }
 
 export const CountSchema = SchemaFactory.createForClass(Count);
+
+// ── Índices secundarios para consultas discriminadas ───────────────────────────
+// MongoDB 6.0+ admite índices secundarios sobre subcampos de `meta` + el timeField
+// en colecciones de series temporales. Uno por cada eje de discriminación; todos
+// llevan companyId como prefijo para garantizar el aislamiento por tenant.
+CountSchema.index({ 'meta.companyId': 1, timestamp: 1 });                          // por empresa
+CountSchema.index({ 'meta.companyId': 1, 'meta.branchIndex': 1, timestamp: 1 });   // por sede
+CountSchema.index({ 'meta.companyId': 1, 'meta.radarId': 1, timestamp: 1 });       // por dispositivo
 
 export interface CountPoint {
   timestamp: string;

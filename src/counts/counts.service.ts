@@ -150,21 +150,87 @@ export class CountsService {
     };
   }
 
+  /** Conteos discriminados por SEDE dentro de una empresa. */
   async compareByBranch(companyId: string, from: string, to: string) {
     const pipeline: PipelineStage[] = [
       {
         $match: {
           'meta.companyId': new Types.ObjectId(companyId),
-          timestamp: { $gte: new Date(from), $lte: new Date(to) },
+          timestamp: { $gte: new Date(from), $lte: this.endOfDay(to) },
         },
       },
-      { $group: { _id: '$meta.branchIndex', total_in: { $sum: '$count_in' }, total_out: { $sum: '$count_out' } } },
+      { $group: { _id: '$meta.branchIndex', total_in: { $sum: '$count_in' }, total_out: { $sum: '$count_out' }, events: { $sum: 1 } } },
+      { $sort: { total_in: -1 } },
+    ];
+    return this.countModel.aggregate(pipeline);
+  }
+
+  /**
+   * Conteos discriminados por DISPOSITIVO (radar) dentro de una empresa.
+   * Opcionalmente acotado a una sede. Incluye nombre y uid del radar vía $lookup.
+   */
+  async byRadar(companyId: string, from: string, to: string, branchIndex?: number) {
+    const match: Record<string, unknown> = {
+      'meta.companyId': new Types.ObjectId(companyId),
+      timestamp: { $gte: new Date(from), $lte: this.endOfDay(to) },
+    };
+    if (branchIndex !== undefined) match['meta.branchIndex'] = branchIndex;
+
+    const pipeline: PipelineStage[] = [
+      { $match: match },
+      {
+        $group: {
+          _id:       '$meta.radarId',
+          total_in:  { $sum: '$count_in' },
+          total_out: { $sum: '$count_out' },
+          events:    { $sum: 1 },
+          branchIndex: { $first: '$meta.branchIndex' },
+        },
+      },
+      { $lookup: { from: 'radars', localField: '_id', foreignField: '_id', as: 'radar' } },
+      {
+        $addFields: {
+          nombre:       { $ifNull: [{ $first: '$radar.nombre' }, 'Radar desconocido'] },
+          uid_hardware: { $first: '$radar.uid_hardware' },
+        },
+      },
+      { $project: { radar: 0 } },
+      { $sort: { total_in: -1 } },
+    ];
+    return this.countModel.aggregate(pipeline);
+  }
+
+  /**
+   * Conteos discriminados por EMPRESA (vista global / super-admin).
+   * Incluye el nombre de la empresa vía $lookup.
+   */
+  async byCompany(from: string, to: string) {
+    const pipeline: PipelineStage[] = [
+      { $match: { timestamp: { $gte: new Date(from), $lte: this.endOfDay(to) } } },
+      {
+        $group: {
+          _id:       '$meta.companyId',
+          total_in:  { $sum: '$count_in' },
+          total_out: { $sum: '$count_out' },
+          events:    { $sum: 1 },
+        },
+      },
+      { $lookup: { from: 'companies', localField: '_id', foreignField: '_id', as: 'company' } },
+      { $addFields: { nombre: { $ifNull: [{ $first: '$company.nombre' }, 'Empresa desconocida'] } } },
+      { $project: { company: 0 } },
       { $sort: { total_in: -1 } },
     ];
     return this.countModel.aggregate(pipeline);
   }
 
   // ─── Helpers privados ──────────────────────────────────────────────────────
+
+  /** Convierte 'YYYY-MM-DD' al final del día (incluye toda la jornada). */
+  private endOfDay(to: string): Date {
+    const d = new Date(to);
+    if (to.length === 10) d.setUTCHours(23, 59, 59, 999);
+    return d;
+  }
 
   private async sumPeriod(companyId: string, from: Date, to: Date, branchIndex?: number) {
     const match: Record<string, unknown> = {

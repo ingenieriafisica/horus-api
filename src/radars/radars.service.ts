@@ -182,30 +182,35 @@ export class RadarsService {
 
   async probeRealtime(radarId: string, companyId: string) {
     const radar = await this.findAndVerifyOwnership(radarId, companyId);
-    const cached = await this.getHeartbeatCache(radar);
-    const live   = await this.callLocalApi(radar, '/api/radar');
-    return { source: live ? 'live' : 'cached', radar: live ?? cached };
+    const live  = this.normalizeRadar(await this.callLocalApi(radar, '/api/radar'));
+    const data  = live ?? (await this.getHeartbeatCache(radar));
+    return {
+      source: live ? 'live' : 'cached',
+      radar: {
+        ...data,
+        ip_local: radar.ip_local,
+        status:   radar.status,
+        nombre:   radar.nombre,
+      },
+    };
   }
 
   async probeStats(radarId: string, companyId: string) {
     const radar = await this.findAndVerifyOwnership(radarId, companyId);
-    const live  = await this.callLocalApi(radar, '/api/stats');
-    if (!live) {
-      const cached = await this.getHeartbeatCache(radar);
-      return { source: 'cached', data: cached };
-    }
-    return { source: 'live', data: live };
+    const live  = this.normalizeRadar(await this.callLocalApi(radar, '/api/stats'));
+    const data  = live ?? (await this.getHeartbeatCache(radar));
+    return { source: live ? 'live' : 'cached', data };
   }
 
   async probeHealth(radarId: string, companyId: string) {
     const radar = await this.findAndVerifyOwnership(radarId, companyId);
-    const live  = await this.callLocalApi(radar, '/api/health');
+    const live  = this.normalizeRadar(await this.callLocalApi(radar, '/api/health'));
     return {
-      radarId:    radar._id,
-      nombre:     radar.nombre,
-      status:     radar.status,
-      last_seen:  radar.last_seen,
-      reachable:  !!live,
+      radarId:   radar._id,
+      nombre:    radar.nombre,
+      status:    radar.status,
+      last_seen: radar.last_seen,
+      reachable: !!live,
       live,
     };
   }
@@ -223,12 +228,40 @@ export class RadarsService {
   private async getHeartbeatCache(radar: RadarDocument) {
     const key    = `tenant:${radar.companyId}:radar:${radar._id}:heartbeat`;
     const cached = await this.redis.get(key);
-    if (cached) return JSON.parse(cached);
+    if (cached) return this.normalizeRadar(JSON.parse(cached));
+    return this.normalizeRadar({ last_seen: radar.last_seen, ...(radar.last_heartbeat ?? {}) });
+  }
+
+  /**
+   * Normaliza la respuesta JSON del firmware del ESP32 (ttgo_radar) a una forma
+   * consistente para el dashboard, sin importar si viene en vivo o de la caché.
+   *
+   * El firmware (radar_tft_server.ino / radar_oled_server.ino) emite:
+   *   /api/radar  → { presence, detections, lastDetection, uptime }
+   *   /api/stats  → { detections, wifi_rssi, heap, uptime }
+   *   /api/health → { status, heap, uptime }
+   * Aquí mapeamos heap→heap_free y uptime→uptime_s y aceptamos también los
+   * nombres del heartbeat persistido (detections_total, heap_free, uptime_s).
+   */
+  private normalizeRadar(raw: unknown): {
+    presence: boolean | null;
+    detections: number | null;
+    lastDetection: number | null;
+    wifi_rssi: number | null;
+    heap_free: number | null;
+    uptime_s: number | null;
+    last_seen?: Date | null;
+  } | null {
+    if (!raw || typeof raw !== 'object') return null;
+    const r = raw as Record<string, any>;
     return {
-      ip_local:   radar.ip_local,
-      status:     radar.status,
-      last_seen:  radar.last_seen,
-      ...radar.last_heartbeat,
+      presence:      r.presence ?? null,
+      detections:    r.detections ?? r.detections_total ?? null,
+      lastDetection: r.lastDetection ?? null,
+      wifi_rssi:     r.wifi_rssi ?? null,
+      heap_free:     r.heap ?? r.heap_free ?? null,
+      uptime_s:      r.uptime ?? r.uptime_s ?? null,
+      last_seen:     r.last_seen ?? null,
     };
   }
 

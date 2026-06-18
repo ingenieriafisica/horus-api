@@ -194,9 +194,10 @@ async function seed() {
 
     console.log('\n📊 3. Generando conteos (6 meses de tráfico realista)...');
 
-    // Generar desde 2026-01-01 hasta hoy (2026-06-17 17:00)
-    const startDate = new Date(2026, 0, 1, 0, 0, 0);    // 1 Jan 2026
-    const endDate   = new Date(2026, 5, 17, 17, 0, 0);  // 17 Jun 2026 17:00
+    // Generar desde el 1 de enero hasta AHORA (incluye el día de hoy)
+    const now       = new Date();
+    const startDate = new Date(now.getFullYear(), 0, 1, 0, 0, 0); // 1 Ene del año actual
+    const endDate   = now;
 
     // Tráfico base por hora para cada radar (visitantes/hora en día pico)
     const baseTrafficMap: Record<string, number> = {
@@ -237,10 +238,12 @@ async function seed() {
 
     // ── 4. Índices ────────────────────────────────────────────────────────────
 
+    // Índices alineados con count.schema.ts: un eje de discriminación cada uno
+    // (empresa / sede / dispositivo), todos con companyId como prefijo.
     console.log('\n🗂️  4. Creando índices...');
-    await countCollection.createIndex({ 'meta.companyId': 1, timestamp: -1 });
-    await countCollection.createIndex({ 'meta.companyId': 1, 'meta.branchIndex': 1, timestamp: -1 });
-    await countCollection.createIndex({ 'meta.radarId': 1, timestamp: -1 });
+    await countCollection.createIndex({ 'meta.companyId': 1, timestamp: 1 });                          // por empresa
+    await countCollection.createIndex({ 'meta.companyId': 1, 'meta.branchIndex': 1, timestamp: 1 });   // por sede
+    await countCollection.createIndex({ 'meta.companyId': 1, 'meta.radarId': 1, timestamp: 1 });       // por dispositivo
     await radarCollection.createIndex({ companyId: 1, uid_hardware: 1 }, { unique: true });
     await radarCollection.createIndex({ companyId: 1, branchIndex: 1 });
     console.log('✅ Índices creados');
