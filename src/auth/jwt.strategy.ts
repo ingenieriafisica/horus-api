@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { Request } from 'express';
@@ -18,8 +18,6 @@ export interface JwtPayload {
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  private readonly logger = new Logger(JwtStrategy.name);
-
   constructor(
     private readonly blacklistService: TokenBlacklistService,
     private readonly companiesService: CompaniesService,
@@ -33,35 +31,19 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(req: Request, payload: JwtPayload) {
-    console.log('[JWT-VALIDATE] called, sub=', payload.sub);
-
     // 1. Extraer el token crudo del header
     const token = req.headers.authorization?.replace('Bearer ', '');
-    if (!token) { console.error('[JWT-VALIDATE] No token'); throw new UnauthorizedException('Token no proporcionado'); }
+    if (!token) throw new UnauthorizedException('Token no proporcionado');
 
     // 2. Verificar blacklist (logout previo)
-    let revoked = false;
-    try {
-      revoked = await this.blacklistService.isBlacklisted(token);
-      console.log('[JWT-VALIDATE] revoked=', revoked);
-    } catch (e: any) {
-      console.error('[JWT-VALIDATE] Blacklist error:', e.message);
-    }
+    const revoked = await this.blacklistService.isBlacklisted(token);
     if (revoked) {
       throw new UnauthorizedException('La sesión fue cerrada. Vuelve a iniciar sesión.');
     }
 
     // 3. Verificar que la empresa sigue activa (guard de tenant)
-    let company: any;
-    try {
-      company = await this.companiesService.findCompanyByUserEmail(payload.sub);
-      console.log('[JWT-VALIDATE] company=', company?._id?.toString(), 'status=', company?.status);
-    } catch (e: any) {
-      console.error('[JWT-VALIDATE] Company error:', e.message);
-      throw new UnauthorizedException('Error buscando empresa');
-    }
+    const company = await this.companiesService.findCompanyByUserEmail(payload.sub);
     if (!company || (company as any).status !== 'active') {
-      console.log('[JWT-VALIDATE] company inactive or not found');
       throw new UnauthorizedException('Empresa suspendida o no encontrada');
     }
 
@@ -69,7 +51,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     const user = (company as any).users.find(
       (u: any) => u.email === payload.sub && u.active,
     );
-    console.log('[JWT-VALIDATE] user found=', !!user);
     if (!user) {
       throw new UnauthorizedException('Usuario inactivo o no encontrado');
     }

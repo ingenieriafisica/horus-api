@@ -8,6 +8,7 @@
     "start:dev": "ts-node-dev --respawn --transpile-only src/main.ts",
     "start:debug": "ts-node-dev --respawn --inspect --transpile-only src/main.ts",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\"",
+    "seed": "ts-node-dev --transpile-only src/seed.ts",
     "test": "jest"
   },
   "dependencies": {

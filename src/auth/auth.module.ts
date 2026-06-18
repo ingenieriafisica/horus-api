@@ -10,6 +10,7 @@ import { RolesGuard } from './roles.guard';
 import { MailService } from './mail.service';
 import { TokenBlacklistService } from './token-blacklist.service';
 import { CompaniesModule } from '../companies/companies.module';
+import { TenantGuard } from '../common/guards';
 import * as dotenv from 'dotenv';
 dotenv.config();
 
@@ -37,9 +38,10 @@ dotenv.config();
         AuthService,
         JwtStrategy,
 
-        // Guards globales: JwtAuthGuard protege todo excepto rutas @Public()
+        // Guards globales en orden: 1) JWT, 2) Roles, 3) Tenant isolation
         { provide: APP_GUARD, useClass: JwtAuthGuard },
         { provide: APP_GUARD, useClass: RolesGuard },
+        { provide: APP_GUARD, useClass: TenantGuard },
     ],
     exports: [AuthService, TokenBlacklistService, MailService],
 })

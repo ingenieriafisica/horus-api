@@ -23,7 +23,7 @@ export class CountsController {
    *
    * Params:
    *   companyId, from, to, granularity (hour|day|week|month),
-   *   branchIndex?, cameraId?
+   *   branchIndex?, radarId?
    */
   @Get('query')
   query(@Query() dto: CountQueryDto) {

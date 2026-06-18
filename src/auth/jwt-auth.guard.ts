@@ -19,7 +19,6 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
   }
 
   handleRequest(err: any, user: any, info: any) {
-    console.log('[JWT-GUARD] err=', err?.message, 'user=', !!user, 'info=', info?.message ?? info?.name ?? JSON.stringify(info));
     if (err || !user) {
       throw err || new UnauthorizedException(
         info?.message || 'Acceso denegado. Autentícate para continuar.',

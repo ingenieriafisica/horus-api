@@ -18,7 +18,7 @@ export class CompaniesService {
     const [data, total] = await Promise.all([
       this.companyModel
         .find({ status: { $ne: 'deleted' } })
-        .select('-users -sedes.cameras')
+        .select('-users -sedes.radars')
         .skip(skip)
         .limit(limit)
         .lean(),
@@ -69,7 +69,7 @@ export class CompaniesService {
 
   async addBranch(companyId: string, dto: CreateBranchDto): Promise<CompanyDocument> {
     const company = await this.findById(companyId);
-    company.sedes.push({ ...dto, active: true, cameras: [] });
+    company.sedes.push({ ...dto, active: true, radars: [] });
     return company.save();
   }
 
@@ -102,36 +102,36 @@ export class CompaniesService {
     return company.sedes.map((s, i) => ({ ...s, branchIndex: i }));
   }
 
-  /** Añade la referencia de una cámara a la sede */
-  async linkCamera(
+  /** Añade la referencia de un radar a la sede */
+  async linkRadar(
     companyId: string,
     branchIndex: number,
-    cameraId: Types.ObjectId,
+    radarId: Types.ObjectId,
   ): Promise<void> {
     const company = await this.findById(companyId);
     if (!company.sedes[branchIndex]) {
       throw new NotFoundException(`Sede ${branchIndex} no existe`);
     }
-    const alreadyLinked = company.sedes[branchIndex].cameras.some(
-      (c) => c.toString() === cameraId.toString(),
+    const alreadyLinked = company.sedes[branchIndex].radars.some(
+      (r) => r.toString() === radarId.toString(),
     );
     if (!alreadyLinked) {
-      company.sedes[branchIndex].cameras.push(cameraId);
+      company.sedes[branchIndex].radars.push(radarId);
       company.markModified('sedes');
       await company.save();
     }
   }
 
-  /** Remueve la referencia de una cámara de la sede */
-  async unlinkCamera(
+  /** Remueve la referencia de un radar de la sede */
+  async unlinkRadar(
     companyId: string,
     branchIndex: number,
-    cameraId: Types.ObjectId,
+    radarId: Types.ObjectId,
   ): Promise<void> {
     const company = await this.findById(companyId);
     if (!company.sedes[branchIndex]) return;
-    company.sedes[branchIndex].cameras = company.sedes[branchIndex].cameras.filter(
-      (c) => c.toString() !== cameraId.toString(),
+    company.sedes[branchIndex].radars = company.sedes[branchIndex].radars.filter(
+      (r) => r.toString() !== radarId.toString(),
     );
     company.markModified('sedes');
     await company.save();

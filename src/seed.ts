@@ -1,16 +1,12 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import mongoose, { Connection, Types } from 'mongoose';
+import mongoose, { Connection } from 'mongoose';
 import * as dotenv from 'dotenv';
 
-// Cargar variables de entorno desde .env
 dotenv.config({ path: path.join(__dirname, '../.env') });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Script de Seed para PeopleCount API
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── Interfaces ───────────────────────────────────────────────────────────────
 
-// Interfaces para parsear los JSON
 interface CompanyData {
   nombre: string;
   nit: string;
@@ -27,12 +23,13 @@ interface BranchData {
   timezone?: string;
 }
 
-interface CameraData {
+interface RadarData {
   uid_hardware: string;
-  companyId?: string; // será reemplazado por ObjectId
+  companyIndex: number;
   branchIndex: number;
-  ubicacion_cam: string;
+  nombre: string;
   ip_local: string;
+  local_api_port?: number;
   firmware_version?: string;
 }
 
@@ -42,172 +39,230 @@ interface UserData {
   branchIndexes?: number[];
 }
 
-interface CountData {
-  uid_hardware: string;
-  timestamp_utc: string;
-  count_in: number;
-  count_out: number;
+// ─── Generador de tráfico realista ───────────────────────────────────────────
+
+/**
+ * Factor de tráfico por hora del día (0-23).
+ * Simula apertura 7am, pico mañana 10-12, pico tarde 17-19, cierre 21.
+ */
+function hourlyFactor(hour: number): number {
+  const curve: Record<number, number> = {
+    7: 0.3, 8: 0.6, 9: 0.85, 10: 1.0, 11: 1.1, 12: 1.2,
+    13: 1.1, 14: 0.9, 15: 0.85, 16: 0.9, 17: 1.15, 18: 1.2,
+    19: 1.0, 20: 0.7, 21: 0.4,
+  };
+  return curve[hour] ?? 0;
 }
 
-interface CameraRecord {
-  _id: Types.ObjectId;
-  uid_hardware: string;
+/**
+ * Genera eventos de conteo hora a hora para un día y un radar.
+ * baseIn: visitantes base por hora en día pico normal.
+ */
+function generateDayEvents(
+  date: Date,
+  uid_hardware: string,
+  baseIn: number,
+  lastHour?: number,  // limitar hasta esta hora (para el día actual)
+): Array<{ timestamp: Date; count_in: number; count_out: number }> {
+  const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+  const dayMult   = isWeekend ? 0.38 : 1.0;
+
+  const events: Array<{ timestamp: Date; count_in: number; count_out: number }> = [];
+
+  const openHour  = 7;
+  const closeHour = lastHour ?? 21;
+
+  for (let h = openHour; h <= closeHour; h++) {
+    const factor = hourlyFactor(h);
+    if (factor === 0) continue;
+
+    // Pequeña variación aleatoria determinista basada en fecha+hora+hardware
+    const seed   = (date.getDate() * 31 + date.getMonth() * 7 + h * 13 + uid_hardware.charCodeAt(uid_hardware.length - 1)) % 100;
+    const jitter = 0.8 + (seed / 100) * 0.4;   // 0.80–1.20
+
+    const count_in  = Math.max(1, Math.round(baseIn * factor * dayMult * jitter));
+    const count_out = Math.max(0, Math.round(count_in * (0.65 + (seed % 40) / 100)));  // 65–105% de in
+
+    const minute = (seed * 7) % 59;
+    events.push({
+      timestamp: new Date(date.getFullYear(), date.getMonth(), date.getDate(), h, minute, 0),
+      count_in,
+      count_out,
+    });
+  }
+
+  return events;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+/**
+ * Genera eventos para un rango de fechas (desde startDate hasta endDate inclusive).
+ * Para el último día solo llega hasta lastHourToday.
+ */
+function generateRangeEvents(
+  startDate: Date,
+  endDate: Date,
+  uid_hardware: string,
+  baseInPerHour: number,
+): Array<{ timestamp: Date; count_in: number; count_out: number }> {
+  const all: Array<{ timestamp: Date; count_in: number; count_out: number }> = [];
+  const cursor = new Date(startDate);
+
+  while (cursor <= endDate) {
+    const isToday =
+      cursor.getFullYear() === endDate.getFullYear() &&
+      cursor.getMonth()    === endDate.getMonth()    &&
+      cursor.getDate()     === endDate.getDate();
+
+    const lastHour = isToday ? endDate.getHours() : undefined;
+    all.push(...generateDayEvents(new Date(cursor), uid_hardware, baseInPerHour, lastHour));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  return all;
+}
+
+// ─── Función principal ────────────────────────────────────────────────────────
 
 async function seed() {
   const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/peoplecount';
-  let connection: Connection;
+  let connection!: Connection;
 
   try {
     console.log('🔌 Conectando a MongoDB...');
     connection = await mongoose.createConnection(mongoUri).asPromise();
-    console.log('✅ Conexión a MongoDB exitosa');
+    console.log('✅ Conexión exitosa');
 
-    // Obtener las colecciones
     const companyCollection = connection.collection('companies');
-    const cameraCollection = connection.collection('cameras');
-    const countCollection = connection.collection('counts');
+    const radarCollection   = connection.collection('radars');
+    const countCollection   = connection.collection('counts');
 
-    // Limpiar colecciones (opcional - comentar si no se desea)
-    console.log('🧹 Limpiando colecciones existentes...');
-    await companyCollection.deleteMany({});
-    await cameraCollection.deleteMany({});
-    await countCollection.deleteMany({});
+    console.log('🧹 Limpiando colecciones...');
+    await Promise.all([
+      companyCollection.deleteMany({}),
+      radarCollection.deleteMany({}),
+      countCollection.deleteMany({}),
+    ]);
 
-    // ─── 1. Insertar Companies ───────────────────────────────────────────────
+    const DATA = path.join(__dirname, 'common/dto/seed-data');
+
+    // ── 1. Empresas ──────────────────────────────────────────────────────────
+
     console.log('\n📦 1. Insertando empresas...');
-    const companiesData = JSON.parse(
-      fs.readFileSync(path.join(__dirname, 'common/dto/seed-data/companies.json'), 'utf-8')
-    ) as CompanyData[];
 
-    const branchesData = JSON.parse(
-      fs.readFileSync(path.join(__dirname, 'common/dto/seed-data/branches.json'), 'utf-8')
-    ) as BranchData[];
+    const companiesRaw = JSON.parse(fs.readFileSync(`${DATA}/companies.json`, 'utf-8')) as CompanyData[];
+    const branchesRaw  = JSON.parse(fs.readFileSync(`${DATA}/branches.json`,  'utf-8')) as BranchData[];
+    const usersRaw     = JSON.parse(fs.readFileSync(`${DATA}/users.json`,     'utf-8')) as UserData[];
 
-    const usersData = JSON.parse(
-      fs.readFileSync(path.join(__dirname, 'common/dto/seed-data/users.json'), 'utf-8')
-    ) as UserData[];
+    // Distribución de sedes: empresa 0 → sedes 0,1 | empresa 1 → sede 2 | empresa 2 → sede 3
+    const sedeRanges: [number, number][] = [[0, 2], [2, 3], [3, 4]];
+    // Distribución de usuarios: empresa 0 → users 0-3 | empresa 1 → users 4-5 | empresa 2 → user 6
+    const userRanges: [number, number][] = [[0, 4], [4, 6], [6, 7]];
 
-    const companiesWithEmbedded = companiesData.map((company, idx) => ({
-      ...company,
+    const companies = companiesRaw.map((c, i) => ({
+      ...c,
       status: 'active',
-      sedes: idx === 0 ? branchesData.slice(0, 2) : idx === 1 ? branchesData.slice(2, 3) : [],
-      users: usersData.filter((_, uIdx) => {
-        if (idx === 0) return uIdx < 3;
-        if (idx === 1) return uIdx >= 3 && uIdx < 5;
-        return uIdx >= 5;
-      }).map(u => ({ ...u, active: true })),
+      sedes: branchesRaw.slice(...sedeRanges[i]).map(s => ({ ...s, active: true, radars: [] })),
+      users: usersRaw.slice(...userRanges[i]).map(u => ({ ...u, active: true })),
     }));
 
-    const companiesResult = await companyCollection.insertMany(companiesWithEmbedded);
-    const companyIdMap = new Map(
-      companiesData.map((c, idx) => [c.nit, companiesResult.insertedIds[idx]])
-    );
+    const { insertedIds: companyIds } = await companyCollection.insertMany(companies);
+    console.log(`✅ ${Object.keys(companyIds).length} empresas`);
 
-    console.log(`✅ ${companiesResult.insertedCount} empresas insertadas`);
-    companiesData.forEach((c, idx) => {
-      console.log(
-        `   • ${c.nombre} (NIT: ${c.nit}) - ID: ${companiesResult.insertedIds[idx]}`
-      );
-    });
+    // ── 2. Radares ───────────────────────────────────────────────────────────
 
-    // ─── 2. Insertar Cameras ─────────────────────────────────────────────────
-    console.log('\n📷 2. Insertando cámaras...');
-    const camerasData = JSON.parse(
-      fs.readFileSync(path.join(__dirname, 'common/dto/seed-data/cameras.json'), 'utf-8')
-    ) as CameraData[];
+    console.log('\n📡 2. Insertando radares...');
 
-    // Mapear companyId string a ObjectId
-    const camerasWithObjectIds = camerasData.map(camera => {
-      // Encontrar el companyId basado en el índice o patrón
-      const companyId = camera.companyId;
-      const mappedId = Array.from(companyIdMap.values())[
-        camera.companyId === 'techcorp_id'
-          ? 0
-          : camera.companyId === 'retailplus_id'
-            ? 1
-            : 2
-      ];
+    const radarsRaw = JSON.parse(fs.readFileSync(`${DATA}/radars.json`, 'utf-8')) as RadarData[];
 
-      return {
-        ...camera,
-        companyId: mappedId,
-        status: 'active',
-      };
-    });
+    const radarsToInsert = radarsRaw.map(r => ({
+      uid_hardware:    r.uid_hardware,
+      companyId:       companyIds[r.companyIndex],
+      branchIndex:     r.branchIndex,
+      nombre:          r.nombre,
+      ip_local:        r.ip_local,
+      local_api_port:  r.local_api_port ?? 80,
+      firmware_version: r.firmware_version,
+      status:          'active',
+      last_seen:       new Date(),
+    }));
 
-    const camerasResult = await cameraCollection.insertMany(camerasWithObjectIds);
-    const cameraIdMap = new Map(
-      camerasData.map((c, idx) => [
-        c.uid_hardware,
-        camerasResult.insertedIds[idx],
-      ])
-    );
+    const { insertedIds: radarIds } = await radarCollection.insertMany(radarsToInsert);
+    console.log(`✅ ${Object.keys(radarIds).length} radares`);
+    radarsRaw.forEach((r, i) => console.log(`   • ${r.uid_hardware} → ID ${radarIds[i]}`));
 
-    console.log(`✅ ${camerasResult.insertedCount} cámaras insertadas`);
-    camerasData.forEach((c, idx) => {
-      console.log(
-        `   • ${c.uid_hardware} (${c.ubicacion_cam}) - ID: ${camerasResult.insertedIds[idx]}`
-      );
-    });
+    // ── 3. Conteos generados programáticamente ────────────────────────────────
 
-    // ─── 3. Insertar Counts ──────────────────────────────────────────────────
-    console.log('\n📊 3. Insertando conteos...');
-    const countsData = JSON.parse(
-      fs.readFileSync(path.join(__dirname, 'common/dto/seed-data/counts.json'), 'utf-8')
-    ) as CountData[];
+    console.log('\n📊 3. Generando conteos (6 meses de tráfico realista)...');
 
-    const countsWithObjectIds = countsData.map(count => {
-      const cameraId = cameraIdMap.get(count.uid_hardware);
-      // Obtener companyId basado en la cámara
-      const cameraDoc = camerasWithObjectIds.find(
-        c => c.uid_hardware === count.uid_hardware
-      );
+    // Generar desde 2026-01-01 hasta hoy (2026-06-17 17:00)
+    const startDate = new Date(2026, 0, 1, 0, 0, 0);    // 1 Jan 2026
+    const endDate   = new Date(2026, 5, 17, 17, 0, 0);  // 17 Jun 2026 17:00
 
-      return {
-        timestamp: new Date(count.timestamp_utc),
-        count_in: count.count_in,
-        count_out: count.count_out,
+    // Tráfico base por hora para cada radar (visitantes/hora en día pico)
+    const baseTrafficMap: Record<string, number> = {
+      'ESP32-CAM-001': 45,   // Entrada principal — alto tráfico
+      'ESP32-CAM-002': 20,   // Salida emergencia — bajo tráfico
+      'ESP32-CAM-003': 38,   // Sucursal Medellín
+      'ESP32-CAM-004': 52,   // Tienda Cali — alto tráfico
+      'ESP32-CAM-005': 30,   // Zona cajas
+    };
+
+    let totalCounts = 0;
+
+    for (let i = 0; i < radarsRaw.length; i++) {
+      const radar       = radarsRaw[i];
+      const radarId     = radarIds[i];
+      const companyId   = companyIds[radar.companyIndex];
+      const baseIn      = baseTrafficMap[radar.uid_hardware] ?? 30;
+
+      const events = generateRangeEvents(startDate, endDate, radar.uid_hardware, baseIn);
+
+      const docs = events.map(e => ({
+        timestamp: e.timestamp,
+        count_in:  e.count_in,
+        count_out: e.count_out,
         meta: {
-          cameraId: cameraId,
-          companyId: cameraDoc?.companyId,
-          branchIndex: cameraDoc?.branchIndex || 0,
+          radarId,
+          companyId,
+          branchIndex: radar.branchIndex,
         },
-      };
-    });
+      }));
 
-    const countsResult = await countCollection.insertMany(countsWithObjectIds);
-    console.log(`✅ ${countsResult.insertedCount} registros de conteos insertados`);
-    countsData.forEach((c, idx) => {
-      console.log(
-        `   • ${c.uid_hardware} @ ${c.timestamp_utc} (${c.count_in} entrada / ${c.count_out} salida)`
-      );
-    });
+      await countCollection.insertMany(docs);
+      totalCounts += docs.length;
 
-    // ─── Resumen ─────────────────────────────────────────────────────────────
-    console.log('\n' + '─'.repeat(70));
-    console.log('✨ SEED COMPLETADO EXITOSAMENTE ✨');
-    console.log('─'.repeat(70));
-    console.log(
-      `📊 Estadísticas:
-   • Empresas: ${companiesResult.insertedCount}
-   • Cámaras: ${camerasResult.insertedCount}
-   • Conteos: ${countsResult.insertedCount}
-  
-📁 Base de datos: peoplecount (MongoDB Atlas)`
-    );
-  } catch (error) {
-    console.error('❌ Error durante el seed:', error);
+      const totalIn = docs.reduce((s, d) => s + d.count_in, 0);
+      console.log(`   • ${radar.uid_hardware}: ${docs.length} eventos — ${totalIn.toLocaleString()} visitantes en 6 meses`);
+    }
+
+    // ── 4. Índices ────────────────────────────────────────────────────────────
+
+    console.log('\n🗂️  4. Creando índices...');
+    await countCollection.createIndex({ 'meta.companyId': 1, timestamp: -1 });
+    await countCollection.createIndex({ 'meta.companyId': 1, 'meta.branchIndex': 1, timestamp: -1 });
+    await countCollection.createIndex({ 'meta.radarId': 1, timestamp: -1 });
+    await radarCollection.createIndex({ companyId: 1, uid_hardware: 1 }, { unique: true });
+    await radarCollection.createIndex({ companyId: 1, branchIndex: 1 });
+    console.log('✅ Índices creados');
+
+    // ── Resumen ───────────────────────────────────────────────────────────────
+
+    console.log('\n' + '═'.repeat(60));
+    console.log('✨  SEED COMPLETADO');
+    console.log(`    Empresas : ${Object.keys(companyIds).length}`);
+    console.log(`    Radares  : ${Object.keys(radarIds).length}`);
+    console.log(`    Conteos  : ${totalCounts.toLocaleString()}`);
+    console.log('═'.repeat(60));
+
+  } catch (err) {
+    console.error('\n❌ Error:', err);
     process.exit(1);
   } finally {
     if (connection) {
       await connection.close();
-      console.log('\n🔌 Conexión a MongoDB cerrada');
+      console.log('🔌 Conexión cerrada');
     }
   }
 }
 
-// Ejecutar seed
 seed();

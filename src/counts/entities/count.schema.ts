@@ -17,15 +17,15 @@ export class Count {
 
   @Prop({
     type: {
-      companyId: { type: Types.ObjectId, ref: 'Company', required: true },
-      cameraId: { type: Types.ObjectId, ref: 'Camera', required: true },
+      companyId:   { type: Types.ObjectId, ref: 'Company', required: true },
+      radarId:     { type: Types.ObjectId, ref: 'Radar',   required: true },
       branchIndex: { type: Number, required: true },
     },
     required: true,
   })
   meta!: {
-    companyId: Types.ObjectId;
-    cameraId: Types.ObjectId;
+    companyId:   Types.ObjectId;
+    radarId:     Types.ObjectId;
     branchIndex: number;
   };
 

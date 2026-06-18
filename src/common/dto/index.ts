@@ -1,104 +1,112 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// DTOs compartidos para toda la aplicación PeopleCount
-// ─────────────────────────────────────────────────────────────────────────────
+import {
+  IsString, IsOptional, IsNumber, IsIn, IsEmail,
+  IsBoolean, IsInt, Min, Max,
+} from 'class-validator';
+import { Type } from 'class-transformer';
 
-// ── Company ──────────────────────────────────────────────────────────────────
+// ── Company ───────────────────────────────────────────────────────────────────
 
 export class CreateCompanyDto {
-  nombre!: string;
-  nit!: string;
-  dbName!: string;
-  plan?: 'starter' | 'pro' | 'enterprise';
-  contacto_email?: string;
-  logo_url?: string;
+  @IsString() nombre!: string;
+  @IsString() nit!: string;
+  @IsString() dbName!: string;
+  @IsOptional() @IsIn(['starter', 'pro', 'enterprise']) plan?: 'starter' | 'pro' | 'enterprise';
+  @IsOptional() @IsEmail() contacto_email?: string;
+  @IsOptional() @IsString() logo_url?: string;
 }
 
 export class UpdateCompanyDto {
-  nombre?: string;
-  status?: 'active' | 'suspended';
-  plan?: 'starter' | 'pro' | 'enterprise';
-  contacto_email?: string;
-  logo_url?: string;
+  @IsOptional() @IsString() nombre?: string;
+  @IsOptional() @IsIn(['active', 'suspended']) status?: 'active' | 'suspended';
+  @IsOptional() @IsIn(['starter', 'pro', 'enterprise']) plan?: 'starter' | 'pro' | 'enterprise';
+  @IsOptional() @IsEmail() contacto_email?: string;
+  @IsOptional() @IsString() logo_url?: string;
 }
 
-// ── Branch ───────────────────────────────────────────────────────────────────
+// ── Branch ────────────────────────────────────────────────────────────────────
 
 export class CreateBranchDto {
-  nombre!: string;
-  ciudad!: string;
-  direccion!: string;
-  timezone?: string;
+  @IsString() nombre!: string;
+  @IsString() ciudad!: string;
+  @IsString() direccion!: string;
+  @IsOptional() @IsString() timezone?: string;
 }
 
 export class UpdateBranchDto {
-  nombre?: string;
-  ciudad?: string;
-  direccion?: string;
-  timezone?: string;
-  active?: boolean;
+  @IsOptional() @IsString() nombre?: string;
+  @IsOptional() @IsString() ciudad?: string;
+  @IsOptional() @IsString() direccion?: string;
+  @IsOptional() @IsString() timezone?: string;
+  @IsOptional() @IsBoolean() active?: boolean;
 }
 
-// ── Company User ─────────────────────────────────────────────────────────────
+// ── Company User ──────────────────────────────────────────────────────────────
 
 export class AddUserDto {
-  email!: string;
-  role!: 'admin' | 'manager' | 'viewer';
-  branchIndexes?: number[];
+  @IsEmail() email!: string;
+  @IsIn(['admin', 'manager', 'viewer']) role!: 'admin' | 'manager' | 'viewer';
+  @IsOptional() @IsNumber({}, { each: true }) branchIndexes?: number[];
 }
 
 export class UpdateUserDto {
-  role?: 'admin' | 'manager' | 'viewer';
-  active?: boolean;
-  branchIndexes?: number[];
+  @IsOptional() @IsIn(['admin', 'manager', 'viewer']) role?: 'admin' | 'manager' | 'viewer';
+  @IsOptional() @IsBoolean() active?: boolean;
+  @IsOptional() @IsNumber({}, { each: true }) branchIndexes?: number[];
 }
 
-// ── Camera ───────────────────────────────────────────────────────────────────
+// ── Radar ─────────────────────────────────────────────────────────────────────
 
-export class CreateCameraDto {
-  uid_hardware!: string;
-  companyId!: string;
-  branchIndex!: number;
-  ubicacion_cam!: string;
-  ip_local!: string;
-  firmware_version?: string;
+export class CreateRadarDto {
+  @IsString() uid_hardware!: string;
+  @IsString() companyId!: string;
+  @IsInt() @Min(0) @Type(() => Number) branchIndex!: number;
+  @IsString() nombre!: string;
+  @IsString() ip_local!: string;
+  @IsOptional() @IsInt() @Min(1) @Max(65535) @Type(() => Number) local_api_port?: number;
+  @IsOptional() @IsString() firmware_version?: string;
 }
 
-export class UpdateCameraDto {
-  ubicacion_cam?: string;
-  ip_local?: string;
-  status?: 'active' | 'inactive' | 'error';
-  firmware_version?: string;
+export class UpdateRadarDto {
+  @IsOptional() @IsString() nombre?: string;
+  @IsOptional() @IsString() ip_local?: string;
+  @IsOptional() @IsInt() @Min(1) @Max(65535) @Type(() => Number) local_api_port?: number;
+  @IsOptional() @IsIn(['active', 'inactive', 'error', 'offline']) status?: string;
+  @IsOptional() @IsString() firmware_version?: string;
 }
 
-/** Payload enviado por el ESP32 */
+/** Payload enviado por el ESP32 en cada heartbeat */
 export class HeartbeatDto {
-  uid_hardware!: string;
-  ip_local?: string;
-  firmware_version?: string;
-  wifi_rssi?: number;
+  @IsString() uid_hardware!: string;
+  @IsOptional() @IsString() ip_local?: string;
+  @IsOptional() @IsString() firmware_version?: string;
+  @IsOptional() @IsInt() @Min(1) @Max(65535) @Type(() => Number) local_api_port?: number;
+  @IsOptional() @IsNumber() @Type(() => Number) wifi_rssi?: number;
+  @IsOptional() @IsNumber() @Type(() => Number) heap_free?: number;
+  @IsOptional() @IsNumber() @Type(() => Number) uptime_s?: number;
+  @IsOptional() @IsNumber() @Type(() => Number) detections_total?: number;
 }
 
 // ── Count ─────────────────────────────────────────────────────────────────────
 
-/** Payload que envía el ESP32 al endpoint de ingestión */
 export class IngestCountDto {
-  uid_hardware!: string;    // identifica el dispositivo
-  timestamp_utc!: string;   // ISO 8601
-  count_in!: number;
-  count_out!: number;
+  @IsString() uid_hardware!: string;
+  @IsString() timestamp_utc!: string;
+  @IsNumber() @Min(0) @Type(() => Number) count_in!: number;
+  @IsNumber() @Min(0) @Type(() => Number) count_out!: number;
 }
 
-/** Parámetros de consulta para el dashboard */
 export class CountQueryDto {
-  companyId!: string;
-  branchIndex?: number;
-  cameraId?: string;
-  from!: string;   // ISO 8601
-  to!: string;     // ISO 8601
-  granularity?: 'hour' | 'day' | 'week' | 'month';
+  @IsString() companyId!: string;
+  @IsOptional() @IsInt() @Min(0) @Type(() => Number) branchIndex?: number;
+  @IsOptional() @IsString() radarId?: string;
+  @IsString() from!: string;
+  @IsString() to!: string;
+  @IsOptional() @IsIn(['hour', 'day', 'week', 'month']) granularity?: 'hour' | 'day' | 'week' | 'month';
 }
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
+// Nota: los DTOs de auth usan su propio archivo src/auth/dto/auth.dto.ts
+// Estos están aquí solo como referencia para importaciones legacy.
 
 export class RequestOtpDto {
   email!: string;

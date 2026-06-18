@@ -1,0 +1,47 @@
+[
+  {
+    "uid_hardware": "ESP32-CAM-001",
+    "companyIndex": 0,
+    "branchIndex": 0,
+    "nombre": "Entrada Principal - Piso 1",
+    "ip_local": "192.168.1.100",
+    "local_api_port": 80,
+    "firmware_version": "2.1.5"
+  },
+  {
+    "uid_hardware": "ESP32-CAM-002",
+    "companyIndex": 0,
+    "branchIndex": 0,
+    "nombre": "Salida de Emergencia - Piso 2",
+    "ip_local": "192.168.1.101",
+    "local_api_port": 80,
+    "firmware_version": "2.1.5"
+  },
+  {
+    "uid_hardware": "ESP32-CAM-003",
+    "companyIndex": 0,
+    "branchIndex": 1,
+    "nombre": "Entrada Principal - Medellín",
+    "ip_local": "192.168.2.100",
+    "local_api_port": 80,
+    "firmware_version": "2.1.4"
+  },
+  {
+    "uid_hardware": "ESP32-CAM-004",
+    "companyIndex": 1,
+    "branchIndex": 0,
+    "nombre": "Entrada Tienda - Cali",
+    "ip_local": "192.168.3.100",
+    "local_api_port": 80,
+    "firmware_version": "2.1.5"
+  },
+  {
+    "uid_hardware": "ESP32-CAM-005",
+    "companyIndex": 1,
+    "branchIndex": 0,
+    "nombre": "Zona de Cajas",
+    "ip_local": "192.168.3.101",
+    "local_api_port": 80,
+    "firmware_version": "2.1.5"
+  }
+]
