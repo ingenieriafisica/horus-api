@@ -22,9 +22,13 @@ import {
   UpdateUserDto,
 } from '../common/dto';
 
+import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+
 // Decorador de ejemplo (implementación real en guards/jwt-auth.guard.ts)
 // @UseGuards(JwtAuthGuard, RolesGuard)
 
+@ApiTags('Companies')
+@ApiBearerAuth()
 @Controller('companies')
 export class CompaniesController {
   constructor(private readonly svc: CompaniesService) {}

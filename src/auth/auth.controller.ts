@@ -4,7 +4,9 @@ import { AuthService } from './auth.service';
 import { RequestOtpDto, VerifyOtpDto, RefreshTokenDto } from './dto/auth.dto';
 import { Public } from './decorators/public.decorator';
 import { JwtAuthGuard } from './jwt-auth.guard';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 
+@ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
@@ -16,6 +18,8 @@ export class AuthController {
   @Public()
   @Post('otp/request')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Solicitar OTP', description: 'Envía un código OTP al correo proporcionado' })
+  @ApiResponse({ status: 200, description: 'Código OTP enviado' })
   requestOtp(@Body() dto: RequestOtpDto) {
     return this.authService.requestOtp(dto);
   }
@@ -23,19 +27,12 @@ export class AuthController {
   /**
    * POST /auth/otp/verify
    * Público — verifica el OTP y devuelve access_token + refresh_token.
-   *
-   * Respuesta:
-   * {
-   *   access_token:  "eyJ...",
-   *   refresh_token: "eyJ...",
-   *   token_type:    "Bearer",
-   *   expires_in:    28800,        // segundos (8h)
-   *   user: { email, role, companyId, companyName, branchIndexes }
-   * }
    */
   @Public()
   @Post('otp/verify')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Verificar OTP', description: 'Valida el código OTP y devuelve los tokens de sesión' })
+  @ApiResponse({ status: 200, description: 'Sesión iniciada correctamente' })
   verifyOtp(@Body() dto: VerifyOtpDto) {
     return this.authService.verifyOtp(dto);
   }
@@ -48,6 +45,8 @@ export class AuthController {
   @Public()
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Refrescar Token', description: 'Renueva el access token usando un refresh token válido' })
+  @ApiResponse({ status: 200, description: 'Nuevo access token generado' })
   refresh(@Body() dto: RefreshTokenDto) {
     return this.authService.refresh(dto.refresh_token);
   }
@@ -57,9 +56,12 @@ export class AuthController {
    * Protegido — requiere access_token válido.
    * Invalida tanto el access_token como el refresh_token almacenado.
    */
+  @ApiBearerAuth()
   @UseGuards(JwtAuthGuard)
   @Post('logout')
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Cerrar sesión', description: 'Invalida los tokens de sesión actuales' })
+  @ApiResponse({ status: 200, description: 'Sesión cerrada correctamente' })
   logout(@Req() req: Request) {
     const token = req.headers.authorization!.split(' ')[1];
     const user  = (req as any).user as { email: string };

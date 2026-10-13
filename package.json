@@ -1,7 +1,7 @@
 {
-  "name": "peoplecount-api",
+  "name": "horus-api",
   "version": "1.0.0",
-  "description": "API multitenant para conteo de personas con ESP32 + YOLO",
+  "description": "API multitenant para conteo de personas (Horus SaaS)",
   "scripts": {
     "build": "nest build",
     "start": "node dist/main",

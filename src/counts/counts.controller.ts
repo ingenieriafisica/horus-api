@@ -3,7 +3,10 @@ import { CountsService } from './counts.service';
 import { IngestCountDto, CountQueryDto } from '../common/dto';
 import { Public } from '../auth/decorators/public.decorator';
 import { Roles, RolesGuard } from '../auth/roles.guard';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 
+@ApiTags('Counts')
+@ApiBearerAuth()
 @Controller('counts')
 export class CountsController {
   constructor(private readonly svc: CountsService) {}

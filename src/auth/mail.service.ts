@@ -24,7 +24,7 @@ export class MailService {
    * El HTML incluye el código grande y legible, con expiración visible.
    */
   async sendOtp(to: string, code: string, expiresInMinutes = 10): Promise<void> {
-    const subject = `${code} es tu código de acceso — PeopleCount`;
+    const subject = `${code} es tu código de acceso — Horus`;
 
     const html = `
       <!DOCTYPE html>
@@ -40,7 +40,7 @@ export class MailService {
               <tr>
                 <td style="background:#1A3A6B;padding:32px 40px;text-align:center;">
                   <p style="margin:0;color:#FFFFFF;font-size:22px;font-weight:700;
-                             letter-spacing:-0.5px;">PeopleCount</p>
+                             letter-spacing:-0.5px;">Horus</p>
                   <p style="margin:6px 0 0;color:#D5E8F0;font-size:13px;">
                     Plataforma de conteo de personas
                   </p>
@@ -78,7 +78,7 @@ export class MailService {
                   <div style="background:#FEF3C7;border-left:4px solid #F59E0B;
                               border-radius:4px;padding:12px 16px;">
                     <p style="margin:0;color:#92400E;font-size:13px;">
-                      🔒 Nunca compartas este código con nadie. PeopleCount jamás
+                      🔒 Nunca compartas este código con nadie. Horus jamás
                       te lo pedirá por teléfono o chat.
                     </p>
                   </div>
@@ -89,7 +89,7 @@ export class MailService {
                 <td style="background:#F9FAFB;padding:20px 40px;border-top:1px solid #E5E7EB;
                             text-align:center;">
                   <p style="margin:0;color:#9CA3AF;font-size:12px;">
-                    © ${new Date().getFullYear()} PeopleCount · Este es un correo automático,
+                    © ${new Date().getFullYear()} Horus · Este es un correo automático,
                     no respondas a este mensaje.
                   </p>
                 </td>
@@ -103,12 +103,12 @@ export class MailService {
 
     try {
       await this.transporter.sendMail({
-        from: process.env.MAIL_FROM || `"PeopleCount" <${process.env.MAIL_USER}>`,
+        from: process.env.MAIL_FROM || `"Horus" <${process.env.MAIL_USER}>`,
         to,
         subject,
         html,
         // Texto plano para clientes sin soporte HTML
-        text: `Tu código de acceso PeopleCount es: ${code}\nExpira en ${expiresInMinutes} minutos.\nNunca compartas este código.`,
+        text: `Tu código de acceso Horus es: ${code}\nExpira en ${expiresInMinutes} minutos.\nNunca compartas este código.`,
       });
       this.logger.log(`OTP enviado a ${to}`);
     } catch (error) {

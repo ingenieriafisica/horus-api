@@ -14,7 +14,10 @@ import { RadarsService } from './radars.service';
 import { CreateRadarDto, UpdateRadarDto, HeartbeatDto } from '../common/dto';
 import { Public } from '../auth/decorators/public.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 
+@ApiTags('Radars')
+@ApiBearerAuth()
 @Controller('radars')
 export class RadarsController {
   constructor(private readonly svc: RadarsService) {}
