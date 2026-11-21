@@ -4,7 +4,7 @@ export declare class Count {
     timestamp: Date;
     meta: {
         companyId: Types.ObjectId;
-        cameraId: Types.ObjectId;
+        radarId: Types.ObjectId;
         branchIndex: number;
     };
     count_in: number;

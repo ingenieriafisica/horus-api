@@ -35,7 +35,7 @@ interface RadarData {
 
 interface UserData {
   email: string;
-  role: 'admin' | 'manager' | 'viewer';
+  role: 'super_admin' | 'admin' | 'manager' | 'viewer';
   branchIndexes?: number[];
 }
 
@@ -155,8 +155,8 @@ async function seed() {
 
     // Distribución de sedes: empresa 0 → sedes 0,1 | empresa 1 → sede 2 | empresa 2 → sede 3
     const sedeRanges: [number, number][] = [[0, 2], [2, 3], [3, 4]];
-    // Distribución de usuarios: empresa 0 → users 0-3 | empresa 1 → users 4-5 | empresa 2 → user 6
-    const userRanges: [number, number][] = [[0, 4], [4, 6], [6, 7]];
+    // Distribución de usuarios: empresa 0 → users 0-4 (incluye super_admin) | empresa 1 → users 5-6 | empresa 2 → user 7
+    const userRanges: [number, number][] = [[0, 5], [5, 7], [7, 8]];
 
     const companies = companiesRaw.map((c, i) => ({
       ...c,

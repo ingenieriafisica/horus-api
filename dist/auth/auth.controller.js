@@ -11,15 +11,14 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
-var _a;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AuthController = void 0;
 const common_1 = require("@nestjs/common");
-const express_1 = require("express");
 const auth_service_1 = require("./auth.service");
 const auth_dto_1 = require("./dto/auth.dto");
 const public_decorator_1 = require("./decorators/public.decorator");
 const jwt_auth_guard_1 = require("./jwt-auth.guard");
+const swagger_1 = require("@nestjs/swagger");
 let AuthController = class AuthController {
     constructor(authService) {
         this.authService = authService;
@@ -44,6 +43,8 @@ __decorate([
     (0, public_decorator_1.Public)(),
     (0, common_1.Post)('otp/request'),
     (0, common_1.HttpCode)(common_1.HttpStatus.OK),
+    (0, swagger_1.ApiOperation)({ summary: 'Solicitar OTP', description: 'Envía un código OTP al correo proporcionado' }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: 'Código OTP enviado' }),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [auth_dto_1.RequestOtpDto]),
@@ -53,6 +54,8 @@ __decorate([
     (0, public_decorator_1.Public)(),
     (0, common_1.Post)('otp/verify'),
     (0, common_1.HttpCode)(common_1.HttpStatus.OK),
+    (0, swagger_1.ApiOperation)({ summary: 'Verificar OTP', description: 'Valida el código OTP y devuelve los tokens de sesión' }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: 'Sesión iniciada correctamente' }),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [auth_dto_1.VerifyOtpDto]),
@@ -62,21 +65,27 @@ __decorate([
     (0, public_decorator_1.Public)(),
     (0, common_1.Post)('refresh'),
     (0, common_1.HttpCode)(common_1.HttpStatus.OK),
+    (0, swagger_1.ApiOperation)({ summary: 'Refrescar Token', description: 'Renueva el access token usando un refresh token válido' }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: 'Nuevo access token generado' }),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [auth_dto_1.RefreshTokenDto]),
     __metadata("design:returntype", void 0)
 ], AuthController.prototype, "refresh", null);
 __decorate([
+    (0, swagger_1.ApiBearerAuth)(),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard),
     (0, common_1.Post)('logout'),
     (0, common_1.HttpCode)(common_1.HttpStatus.OK),
+    (0, swagger_1.ApiOperation)({ summary: 'Cerrar sesión', description: 'Invalida los tokens de sesión actuales' }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: 'Sesión cerrada correctamente' }),
     __param(0, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [typeof (_a = typeof express_1.Request !== "undefined" && express_1.Request) === "function" ? _a : Object]),
+    __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], AuthController.prototype, "logout", null);
 exports.AuthController = AuthController = __decorate([
+    (0, swagger_1.ApiTags)('Auth'),
     (0, common_1.Controller)('auth'),
     __metadata("design:paramtypes", [auth_service_1.AuthService])
 ], AuthController);

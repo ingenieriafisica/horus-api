@@ -1,5 +1,10 @@
 [
   {
+    "email": "superadmin@horus.co",
+    "role": "super_admin",
+    "branchIndexes": []
+  },
+  {
     "email": "nadc10@hotmail.com",
     "role": "admin",
     "branchIndexes": [0, 1]

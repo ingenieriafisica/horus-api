@@ -23,10 +23,11 @@ __decorate([
     (0, mongoose_1.Prop)({
         type: {
             companyId: { type: mongoose_2.Types.ObjectId, ref: 'Company', required: true },
-            cameraId: { type: mongoose_2.Types.ObjectId, ref: 'Camera', required: true },
+            radarId: { type: mongoose_2.Types.ObjectId, ref: 'Radar', required: true },
             branchIndex: { type: Number, required: true },
         },
         required: true,
+        _id: false,
     }),
     __metadata("design:type", Object)
 ], Count.prototype, "meta", void 0);
@@ -49,4 +50,7 @@ exports.Count = Count = __decorate([
     })
 ], Count);
 exports.CountSchema = mongoose_1.SchemaFactory.createForClass(Count);
+exports.CountSchema.index({ 'meta.companyId': 1, timestamp: 1 });
+exports.CountSchema.index({ 'meta.companyId': 1, 'meta.branchIndex': 1, timestamp: 1 });
+exports.CountSchema.index({ 'meta.companyId': 1, 'meta.radarId': 1, timestamp: 1 });
 //# sourceMappingURL=count.schema.js.map

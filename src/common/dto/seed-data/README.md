@@ -1,4 +1,4 @@
-# Datos de Seed para PeopleCount API
+# Datos de Seed para Horus API
 
 Esta carpeta contiene archivos JSON de ejemplo para llenar la base de datos con datos iniciales.
 

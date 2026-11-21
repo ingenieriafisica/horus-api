@@ -24,8 +24,8 @@ dotenv.config();
                 signOptions: {
                     expiresIn: '8h',
                     algorithm: 'HS256',
-                    issuer: 'peoplecount-api',
-                    audience: 'peoplecount-clients',
+                    issuer: 'horus-api',
+                    audience: 'horus-clients',
                 },
             }),
         }),

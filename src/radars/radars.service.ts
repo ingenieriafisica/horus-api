@@ -4,14 +4,18 @@ import {
   ConflictException,
   BadRequestException,
   UnauthorizedException,
+  ForbiddenException,
   Logger,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
+import * as crypto from 'crypto';
 import { Radar, RadarDocument } from './entities/radar.schema';
+import { PLAN_LIMITS } from '../companies/entities/company.schema';
 import { CompaniesService } from '../companies/companies.service';
+import { AuditService } from '../audit/audit.service';
 import {
   CreateRadarDto,
   UpdateRadarDto,
@@ -28,15 +32,30 @@ export class RadarsService {
     @InjectModel(Radar.name)
     private readonly radarModel: Model<RadarDocument>,
     private readonly companiesService: CompaniesService,
+    private readonly auditService: AuditService,
     @InjectRedis() private readonly redis: Redis,
   ) {}
 
   // ─── Registro ──────────────────────────────────────────────────────────────
 
-  async create(dto: CreateRadarDto): Promise<RadarDocument> {
+  async create(
+    dto: CreateRadarDto,
+    actor?: { email?: string; role?: string },
+  ): Promise<Record<string, unknown>> {
     const company = await this.companiesService.findById(dto.companyId);
     if (!company.sedes[dto.branchIndex]) {
       throw new NotFoundException(`Sede ${dto.branchIndex} no existe`);
+    }
+
+    const limits = PLAN_LIMITS[company.plan] ?? PLAN_LIMITS.starter;
+    const activeRadarsCount = await this.radarModel.countDocuments({
+      companyId: new Types.ObjectId(dto.companyId),
+      status: { $ne: 'inactive' },
+    });
+    if (activeRadarsCount >= limits.maxRadars) {
+      throw new ForbiddenException(
+        `Tu plan ${limits.label} permite máximo ${limits.maxRadars} radares activos. Actualiza tu plan para registrar más.`,
+      );
     }
 
     const exists = await this.radarModel
@@ -44,11 +63,15 @@ export class RadarsService {
       .lean();
     if (exists) throw new ConflictException(`uid_hardware '${dto.uid_hardware}' ya registrado`);
 
+    const rawKey = this.generateDeviceKey();
+    const deviceKeyHash = this.hashDeviceKey(rawKey);
+
     const radar = await new this.radarModel({
       ...dto,
       companyId: new Types.ObjectId(dto.companyId),
       status: 'active',
       local_api_port: dto.local_api_port ?? 80,
+      device_key_hash: deviceKeyHash,
     }).save();
 
     await this.companiesService.linkRadar(
@@ -58,27 +81,81 @@ export class RadarsService {
     );
 
     await this.invalidateStatusCache(dto.companyId);
-    return radar;
+    await this.auditService.log({
+      companyId: dto.companyId,
+      actorEmail: actor?.email,
+      actorRole: actor?.role,
+      action: 'CREATE_RADAR',
+      resource: 'radar',
+      resourceId: (radar._id as Types.ObjectId).toString(),
+      details: { uid_hardware: dto.uid_hardware, branchIndex: dto.branchIndex },
+    });
+
+    const plain = radar.toObject();
+    delete (plain as any).device_key_hash;
+    // Devuelve device_key una sola vez para provisionar el ESP32
+    return { ...plain, device_key: rawKey };
+  }
+
+  async rotateKey(
+    id: string,
+    companyId: string,
+    actor?: { email?: string; role?: string },
+  ): Promise<{ device_key: string }> {
+    const radar = await this.findAndVerifyOwnership(id, companyId, actor?.role);
+    const rawKey = this.generateDeviceKey();
+    radar.device_key_hash = this.hashDeviceKey(rawKey);
+    await radar.save();
+
+    await this.auditService.log({
+      companyId: radar.companyId.toString(),
+      actorEmail: actor?.email,
+      actorRole: actor?.role,
+      action: 'ROTATE_RADAR_KEY',
+      resource: 'radar',
+      resourceId: id,
+    });
+
+    return { device_key: rawKey };
   }
 
   // ─── Consultas ─────────────────────────────────────────────────────────────
 
-  async findByCompany(companyId: string): Promise<RadarDocument[]> {
-    return this.radarModel
-      .find({ companyId: new Types.ObjectId(companyId) })
-      .lean() as unknown as RadarDocument[];
+  async findByCompany(
+    companyId: string,
+    user?: { role?: string; branchIndexes?: number[] },
+  ): Promise<RadarDocument[]> {
+    if (!Types.ObjectId.isValid(companyId)) throw new BadRequestException('companyId inválido');
+    const filter: Record<string, unknown> = { companyId: new Types.ObjectId(companyId) };
+    if (
+      user &&
+      user.role !== 'admin' &&
+      user.role !== 'super_admin' &&
+      user.branchIndexes?.length
+    ) {
+      filter.branchIndex = { $in: user.branchIndexes };
+    }
+    return this.radarModel.find(filter).lean() as unknown as RadarDocument[];
   }
 
   async findByBranch(companyId: string, branchIndex: number): Promise<RadarDocument[]> {
+    if (!Types.ObjectId.isValid(companyId)) throw new BadRequestException('companyId inválido');
     return this.radarModel
       .find({ companyId: new Types.ObjectId(companyId), branchIndex })
       .lean() as unknown as RadarDocument[];
   }
 
-  async findById(id: string): Promise<RadarDocument> {
+  async findById(
+    id: string,
+    companyId?: string,
+    role?: string,
+  ): Promise<RadarDocument> {
     if (!Types.ObjectId.isValid(id)) throw new BadRequestException('ID inválido');
     const radar = await this.radarModel.findById(id).exec();
     if (!radar) throw new NotFoundException(`Radar ${id} no encontrado`);
+    if (companyId && role !== 'super_admin' && radar.companyId.toString() !== companyId) {
+      throw new ForbiddenException('No autorizado para este radar');
+    }
     return radar;
   }
 
@@ -88,36 +165,49 @@ export class RadarsService {
 
   // ─── Actualización ─────────────────────────────────────────────────────────
 
-  async update(id: string, dto: UpdateRadarDto): Promise<RadarDocument> {
-    const radar = await this.findById(id);
+  async update(
+    id: string,
+    dto: UpdateRadarDto,
+    companyId: string,
+    role?: string,
+  ): Promise<RadarDocument> {
+    const radar = await this.findById(id, companyId, role);
     Object.assign(radar, dto);
     const updated = await radar.save();
     await this.invalidateStatusCache(radar.companyId.toString());
     return updated;
   }
 
-  async deactivate(id: string, companyId: string): Promise<{ message: string }> {
-    const radar = await this.findById(id);
-    if (radar.companyId.toString() !== companyId) {
-      throw new UnauthorizedException('No autorizado para este radar');
-    }
+  async deactivate(
+    id: string,
+    companyId: string,
+    actor?: { email?: string; role?: string },
+  ): Promise<{ message: string }> {
+    const radar = await this.findById(id, companyId, actor?.role);
     radar.status = 'inactive';
     await radar.save();
 
     await this.companiesService.unlinkRadar(
-      companyId,
+      radar.companyId.toString(),
       radar.branchIndex,
       radar._id as Types.ObjectId,
     );
-    await this.invalidateStatusCache(companyId);
+    await this.invalidateStatusCache(radar.companyId.toString());
+    await this.auditService.log({
+      companyId: radar.companyId.toString(),
+      actorEmail: actor?.email,
+      actorRole: actor?.role,
+      action: 'DEACTIVATE_RADAR',
+      resource: 'radar',
+      resourceId: id,
+    });
     return { message: `Radar ${id} desactivado` };
   }
 
   // ─── Heartbeat (llamado por el ESP32 cada ~5 min) ─────────────────────────
 
-  async heartbeat(dto: HeartbeatDto): Promise<{ status: string }> {
-    const radar = await this.radarModel.findOne({ uid_hardware: dto.uid_hardware });
-    if (!radar) throw new UnauthorizedException('Dispositivo no registrado');
+  async heartbeat(dto: HeartbeatDto, bearerToken?: string): Promise<{ status: string }> {
+    const radar = await this.validateDevice(dto.uid_hardware, bearerToken, true);
 
     const update: Partial<Radar> = {
       last_seen: new Date(),
@@ -136,6 +226,9 @@ export class RadarsService {
     }
 
     await this.radarModel.findByIdAndUpdate(radar._id, { $set: update });
+    if (update.status === 'active') {
+      await this.invalidateStatusCache(radar.companyId.toString());
+    }
 
     // Cachear estado del radar en Redis para respuestas rápidas al dashboard
     const cacheKey = `tenant:${radar.companyId}:radar:${radar._id}:heartbeat`;
@@ -152,6 +245,7 @@ export class RadarsService {
   // ─── Estado del sistema ────────────────────────────────────────────────────
 
   async getStatusSummary(companyId: string) {
+    if (!Types.ObjectId.isValid(companyId)) throw new BadRequestException('companyId inválido');
     const cacheKey = `tenant:${companyId}:cache:radar-summary`;
     const cached = await this.redis.get(cacheKey);
     if (cached) return JSON.parse(cached);
@@ -168,20 +262,46 @@ export class RadarsService {
     return summary;
   }
 
-  /** Valida que el uid_hardware pertenece a un radar activo (para ingestión de conteos) */
-  async validateDevice(uid_hardware: string): Promise<RadarDocument> {
-    const radar = await this.radarModel.findOne({ uid_hardware, status: 'active' });
+  /**
+   * Valida que el uid_hardware pertenece a un radar registrado (y activo para ingestión).
+   * Si el dispositivo tiene `device_key_hash` y se exige o se envía Bearer token, verifica su hash.
+   */
+  async validateDevice(
+    uid_hardware: string,
+    bearerToken?: string,
+    allowOfflineRecovery = false,
+  ): Promise<RadarDocument> {
+    const statusFilter = allowOfflineRecovery ? { $ne: 'inactive' } : 'active';
+    const radar = await this.radarModel
+      .findOne({ uid_hardware, status: statusFilter })
+      .select('+device_key_hash')
+      .exec();
+
     if (!radar) throw new UnauthorizedException('Dispositivo no registrado o inactivo');
+
+    const requireStrictAuth = process.env.REQUIRE_DEVICE_AUTH === 'true';
+    if (requireStrictAuth && !bearerToken) {
+      throw new UnauthorizedException('Falta Authorization: Bearer <device_key>');
+    }
+    if (radar.device_key_hash && (bearerToken || requireStrictAuth)) {
+      if (!bearerToken) {
+        throw new UnauthorizedException('Device API key requerida');
+      }
+      const incomingHash = this.hashDeviceKey(bearerToken);
+      const a = Buffer.from(incomingHash, 'hex');
+      const b = Buffer.from(radar.device_key_hash, 'hex');
+      if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
+        throw new UnauthorizedException('Device API key inválida');
+      }
+    }
+
     return radar;
   }
 
   // ─── Proxy a la API local del ESP32 ────────────────────────────────────────
-  // El ESP32 expone un servidor HTTP en su IP local. El dashboard puede pedir
-  // datos en tiempo real a través de este proxy cuando ambos están en la misma red.
-  // Si el ESP32 no es alcanzable, devuelve los últimos datos del heartbeat (Redis).
 
-  async probeRealtime(radarId: string, companyId: string) {
-    const radar = await this.findAndVerifyOwnership(radarId, companyId);
+  async probeRealtime(radarId: string, companyId: string, role?: string) {
+    const radar = await this.findAndVerifyOwnership(radarId, companyId, role);
     const live  = this.normalizeRadar(await this.callLocalApi(radar, '/api/radar'));
     const data  = live ?? (await this.getHeartbeatCache(radar));
     return {
@@ -195,15 +315,15 @@ export class RadarsService {
     };
   }
 
-  async probeStats(radarId: string, companyId: string) {
-    const radar = await this.findAndVerifyOwnership(radarId, companyId);
+  async probeStats(radarId: string, companyId: string, role?: string) {
+    const radar = await this.findAndVerifyOwnership(radarId, companyId, role);
     const live  = this.normalizeRadar(await this.callLocalApi(radar, '/api/stats'));
     const data  = live ?? (await this.getHeartbeatCache(radar));
     return { source: live ? 'live' : 'cached', data };
   }
 
-  async probeHealth(radarId: string, companyId: string) {
-    const radar = await this.findAndVerifyOwnership(radarId, companyId);
+  async probeHealth(radarId: string, companyId: string, role?: string) {
+    const radar = await this.findAndVerifyOwnership(radarId, companyId, role);
     const live  = this.normalizeRadar(await this.callLocalApi(radar, '/api/health'));
     return {
       radarId:   radar._id,
@@ -217,12 +337,16 @@ export class RadarsService {
 
   // ─── Helpers privados ──────────────────────────────────────────────────────
 
-  private async findAndVerifyOwnership(radarId: string, companyId: string) {
-    const radar = await this.findById(radarId);
-    if (radar.companyId.toString() !== companyId) {
-      throw new UnauthorizedException('No autorizado para este radar');
-    }
-    return radar;
+  private async findAndVerifyOwnership(radarId: string, companyId: string, role?: string) {
+    return this.findById(radarId, companyId, role);
+  }
+
+  private generateDeviceKey(): string {
+    return `horus_dev_${crypto.randomBytes(24).toString('hex')}`;
+  }
+
+  private hashDeviceKey(rawKey: string): string {
+    return crypto.createHash('sha256').update(rawKey).digest('hex');
   }
 
   private async getHeartbeatCache(radar: RadarDocument) {
@@ -232,17 +356,6 @@ export class RadarsService {
     return this.normalizeRadar({ last_seen: radar.last_seen, ...(radar.last_heartbeat ?? {}) });
   }
 
-  /**
-   * Normaliza la respuesta JSON del firmware del ESP32 (ttgo_radar) a una forma
-   * consistente para el dashboard, sin importar si viene en vivo o de la caché.
-   *
-   * El firmware (radar_tft_server.ino / radar_oled_server.ino) emite:
-   *   /api/radar  → { presence, detections, lastDetection, uptime }
-   *   /api/stats  → { detections, wifi_rssi, heap, uptime }
-   *   /api/health → { status, heap, uptime }
-   * Aquí mapeamos heap→heap_free y uptime→uptime_s y aceptamos también los
-   * nombres del heartbeat persistido (detections_total, heap_free, uptime_s).
-   */
   private normalizeRadar(raw: unknown): {
     presence: boolean | null;
     detections: number | null;
@@ -265,10 +378,6 @@ export class RadarsService {
     };
   }
 
-  /**
-   * Llama a la API HTTP del ESP32 en su red local.
-   * Timeout de 3 segundos. Devuelve null si no es alcanzable.
-   */
   private async callLocalApi(radar: RadarDocument, path: string): Promise<unknown | null> {
     const url = `http://${radar.ip_local}:${radar.local_api_port ?? 80}${path}`;
     const controller = new AbortController();
@@ -286,7 +395,7 @@ export class RadarsService {
     }
   }
 
-  private async invalidateStatusCache(companyId: string) {
+  async invalidateStatusCache(companyId: string) {
     await this.redis.del(`tenant:${companyId}:cache:radar-summary`);
   }
 }

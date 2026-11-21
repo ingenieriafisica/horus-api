@@ -6,11 +6,13 @@ import { RedisModule } from '@nestjs-modules/ioredis';
 import { Count, CountSchema } from './counts/entities/count.schema';
 
 // Modules
+import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
 import { CompaniesModule } from './companies/companies.module';
 import { RadarsModule } from './radars/radars.module';
+import { AlertsModule } from './alerts/alerts.module';
 
-// Services & Controllers (counts module — simple, sin módulo propio)
+// Services & Controllers
 import { CountsService } from './counts/counts.service';
 import { CountsController } from './counts/counts.controller';
 
@@ -19,12 +21,14 @@ dotenv.config();
 
 @Module({
   imports: [
-    // ── Módulos de dominio ────────────────────────────────────────────────────
+    // ── Módulos de dominio ──────────────────────────────────────────────────
+    AuditModule,      // Global AuditService
     AuthModule,       // JwtAuthGuard + RolesGuard + TenantGuard como APP_GUARD global
     CompaniesModule,  // Empresas y sedes
-    RadarsModule,     // Radares ESP32 (reemplaza CamerasModule)
+    RadarsModule,     // Radares ESP32
+    AlertsModule,     // Reglas de alerta + monitor de radares offline
 
-    // ── MongoDB Atlas ──────────────────────────────────────────────────────
+    // ── MongoDB Atlas ───────────────────────────────────────────────────────
     MongooseModule.forRootAsync({
       useFactory: () => ({
         uri: process.env.MONGODB_URI,
@@ -36,12 +40,11 @@ dotenv.config();
       }),
     }),
 
-    // Counts solo necesita su propia colección (Radar la inyecta RadarsModule)
     MongooseModule.forFeature([
       { name: Count.name, schema: CountSchema },
     ]),
 
-    // ── Redis (OTP + blacklist + caché) ───────────────────────────────────
+    // ── Redis (OTP + blacklist + caché + rate-limit) ────────────────────────
     RedisModule.forRootAsync({
       useFactory: () => {
         const redisUrl = process.env.REDIS_URL ?? 'redis://localhost:6379';

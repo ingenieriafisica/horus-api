@@ -11,10 +11,12 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.RefreshTokenDto = exports.VerifyOtpDto = exports.RequestOtpDto = void 0;
 const class_validator_1 = require("class-validator");
+const swagger_1 = require("@nestjs/swagger");
 class RequestOtpDto {
 }
 exports.RequestOtpDto = RequestOtpDto;
 __decorate([
+    (0, swagger_1.ApiProperty)({ example: 'user@example.com', description: 'Correo electrónico del usuario' }),
     (0, class_validator_1.IsEmail)(),
     __metadata("design:type", String)
 ], RequestOtpDto.prototype, "email", void 0);
@@ -22,10 +24,12 @@ class VerifyOtpDto {
 }
 exports.VerifyOtpDto = VerifyOtpDto;
 __decorate([
+    (0, swagger_1.ApiProperty)({ example: 'user@example.com', description: 'Correo electrónico del usuario' }),
     (0, class_validator_1.IsEmail)(),
     __metadata("design:type", String)
 ], VerifyOtpDto.prototype, "email", void 0);
 __decorate([
+    (0, swagger_1.ApiProperty)({ example: '123456', description: 'Código OTP de 6 dígitos' }),
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], VerifyOtpDto.prototype, "code", void 0);
@@ -33,6 +37,7 @@ class RefreshTokenDto {
 }
 exports.RefreshTokenDto = RefreshTokenDto;
 __decorate([
+    (0, swagger_1.ApiProperty)({ example: 'eyJ...', description: 'Token de refresco válido' }),
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], RefreshTokenDto.prototype, "refresh_token", void 0);

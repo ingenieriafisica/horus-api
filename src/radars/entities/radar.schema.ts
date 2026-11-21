@@ -32,6 +32,10 @@ export class Radar {
   @Prop()
   firmware_version?: string;
 
+  /** Hash SHA-256 de la API key del dispositivo (opcional para autenticación Bearer) */
+  @Prop({ select: false })
+  device_key_hash?: string;
+
   @Prop()
   last_seen?: Date;
 

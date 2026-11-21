@@ -116,4 +116,44 @@ export class MailService {
       throw new InternalServerErrorException('No se pudo enviar el correo. Inténtalo de nuevo.');
     }
   }
+
+  /**
+   * Envía una notificación de alerta (aforo máximo o radar sin conexión).
+   * No lanza excepción para no interrumpir flujos de ingestión IoT.
+   */
+  async sendAlertEmail(
+    to: string[],
+    subject: string,
+    title: string,
+    message: string,
+  ): Promise<void> {
+    if (!to.length || !process.env.MAIL_USER) return;
+
+    const html = `
+      <div style="font-family:Arial,sans-serif;background:#F3F4F6;padding:32px;">
+        <div style="max-width:520px;margin:0 auto;background:#FFFFFF;border-radius:12px;overflow:hidden;border:1px solid #E5E7EB;">
+          <div style="background:#1A3A6B;padding:20px 28px;color:#FFFFFF;">
+            <strong>Horus Alertas</strong>
+          </div>
+          <div style="padding:28px;">
+            <h2 style="margin:0 0 12px;color:#111827;font-size:18px;">${title}</h2>
+            <p style="margin:0;color:#4B5563;font-size:14px;line-height:1.6;">${message}</p>
+          </div>
+        </div>
+      </div>
+    `;
+
+    try {
+      await this.transporter.sendMail({
+        from: process.env.MAIL_FROM || `"Horus Alertas" <${process.env.MAIL_USER}>`,
+        to: to.join(','),
+        subject,
+        html,
+        text: `${title}\n\n${message}`,
+      });
+      this.logger.log(`Alerta enviada por email a ${to.join(', ')}`);
+    } catch (error) {
+      this.logger.warn(`No se pudo enviar email de alerta: ${(error as Error).message}`);
+    }
+  }
 }

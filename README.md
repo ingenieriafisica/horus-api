@@ -1,4 +1,4 @@
-# PeopleCount API
+# Horus API
 
 API para conteo de personas en locales comerciales. Multitenant, con cámaras/ESP32 y YOLO, usando MongoDB para datos y Redis para OTP/sesiones.
 

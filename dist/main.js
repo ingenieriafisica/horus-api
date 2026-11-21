@@ -18,8 +18,8 @@ async function bootstrap() {
         transform: true,
     }));
     const config = new swagger_1.DocumentBuilder()
-        .setTitle('PeopleCount API')
-        .setDescription('API para conteo de personas en locales comerciales. Multitenant con ESP32 + YOLO.')
+        .setTitle('Horus API')
+        .setDescription('API para plataforma Horus de conteo de personas. Multitenant.')
         .setVersion('1.0')
         .addBearerAuth()
         .build();
@@ -27,7 +27,7 @@ async function bootstrap() {
     swagger_1.SwaggerModule.setup('api/docs', app, document);
     const port = process.env.PORT ?? 3001;
     await app.listen(port);
-    logger.log(`🚀 PeopleCount API corriendo en: http://localhost:${port}/api/v1`);
+    logger.log(`🚀 Horus API corriendo en: http://localhost:${port}/api/v1`);
     logger.log(`📚 Swagger UI: http://localhost:${port}/api/docs`);
 }
 bootstrap();

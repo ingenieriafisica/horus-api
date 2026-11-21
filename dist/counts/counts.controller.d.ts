@@ -1,36 +1,28 @@
+import { Response } from 'express';
 import { CountsService } from './counts.service';
 import { IngestCountDto, CountQueryDto } from '../common/dto';
+interface JwtUser {
+    email: string;
+    companyId: string;
+    role: string;
+    branchIndexes: number[];
+}
 export declare class CountsController {
     private readonly svc;
     constructor(svc: CountsService);
-    ingest(dto: IngestCountDto): Promise<{
+    ingest(dto: IngestCountDto, authHeader?: string): Promise<{
         ok: boolean;
     }>;
-    query(dto: CountQueryDto): Promise<{
-        data: {
-            timestamp: string;
-            count_in: any;
-            count_out: any;
-        }[];
-        metadata: {
-            total: any;
-            period: "hour" | "day" | "week" | "month";
-        };
+    query(dto: CountQueryDto, user: JwtUser): Promise<{
+        series: any[];
+        totals: any;
         from: string;
         to: string;
         granularity: "hour" | "day" | "week" | "month";
     }>;
-    kpis(companyId: string, branchIndex?: string): Promise<{
-        today: any;
-        month: any;
-        year: any;
-        peakHour: {
-            hour: any;
-            total_in: any;
-        };
-        generatedAt: Date;
-    }>;
-    compare(companyId: string, from: string, to: string, branchIndex?: string): Promise<{
+    exportCsv(dto: CountQueryDto, user: JwtUser, res: Response): Promise<void>;
+    kpis(companyId: string, user: JwtUser, branchIndex?: string, radarId?: string): Promise<any>;
+    compare(companyId: string, from: string, to: string, user: JwtUser, branchIndex?: string, radarId?: string): Promise<{
         current: any;
         previous: any;
         change_pct: {
@@ -38,5 +30,9 @@ export declare class CountsController {
             out: number;
         };
     }>;
-    compareByBranch(companyId: string, from: string, to: string): Promise<any[]>;
+    compareByBranch(companyId: string, from: string, to: string, user: JwtUser): Promise<any[]>;
+    byRadar(companyId: string, from: string, to: string, user: JwtUser, branchIndex?: string): Promise<any[]>;
+    byCompany(from: string, to: string): Promise<any[]>;
+    private allowedBranches;
 }
+export {};

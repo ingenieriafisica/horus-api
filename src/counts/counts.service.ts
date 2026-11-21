@@ -1,29 +1,52 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  HttpException,
+  HttpStatus,
+  Logger,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types, PipelineStage } from 'mongoose';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import Redis from 'ioredis';
 import { Count, CountDocument } from './entities/count.schema';
 import { RadarsService } from '../radars/radars.service';
+import { AlertsService } from '../alerts/alerts.service';
 import { IngestCountDto, CountQueryDto } from '../common/dto';
 
 type Granularity = 'hour' | 'day' | 'week' | 'month';
 
-const KPI_CACHE_TTL = 60; // segundos — los KPIs se refrescan cada minuto
+const KPI_CACHE_TTL       = 60; // segundos
+const INGEST_RATE_LIMIT   = 60; // máximo 60 req/min por dispositivo
+const INGEST_WINDOW_SEC   = 60;
 
 @Injectable()
 export class CountsService {
+  private readonly logger = new Logger(CountsService.name);
+
   constructor(
     @InjectModel(Count.name)
     private readonly countModel: Model<CountDocument>,
     private readonly radarsService: RadarsService,
+    private readonly alertsService: AlertsService,
     @InjectRedis() private readonly redis: Redis,
   ) {}
 
   // ─── Ingestión (llamado por el ESP32) ─────────────────────────────────────
 
-  async ingest(dto: IngestCountDto): Promise<{ ok: boolean }> {
-    const radar = await this.radarsService.validateDevice(dto.uid_hardware);
+  async ingest(dto: IngestCountDto, bearerToken?: string): Promise<{ ok: boolean }> {
+    // Rate limiting por dispositivo: 60 req/min
+    const rlKey = `ratelimit:ingest:${dto.uid_hardware}`;
+    const count = await this.redis.incr(rlKey);
+    if (count === 1) await this.redis.expire(rlKey, INGEST_WINDOW_SEC);
+    if (count > INGEST_RATE_LIMIT) {
+      throw new HttpException(
+        'Demasiadas peticiones desde el dispositivo (máx 60/min)',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
+    const radar = await this.radarsService.validateDevice(dto.uid_hardware, bearerToken);
 
     const ts = new Date(dto.timestamp_utc);
     if (isNaN(ts.getTime())) throw new BadRequestException('timestamp_utc inválido');
@@ -53,30 +76,40 @@ export class CountsService {
     const globalKey = `tenant:${radar.companyId}:cache:kpis:all`;
     await this.redis.del(branchKey, globalKey);
 
+    // Evaluar reglas de aforo máximo sin bloquear respuesta IoT
+    this.alertsService
+      .evaluateOccupancy(
+        radar.companyId.toString(),
+        radar.branchIndex,
+        (radar._id as Types.ObjectId).toString(),
+      )
+      .catch((e) => this.logger.warn(`Error evaluando alertas: ${(e as Error).message}`));
+
     return { ok: true };
   }
 
   // ─── Consultas de analytics ────────────────────────────────────────────────
 
-  async query(dto: CountQueryDto) {
+  async query(dto: CountQueryDto, allowedBranches?: number[]) {
     const { from, to, granularity = 'day', companyId } = dto;
+    if (!Types.ObjectId.isValid(companyId)) throw new BadRequestException('companyId inválido');
 
     const start = new Date(from);
-    const end   = new Date(to);
+    const end   = this.endOfDay(to);
     if (isNaN(start.getTime()) || isNaN(end.getTime())) {
       throw new BadRequestException('Fechas inválidas');
     }
-
-    // Al usar 'to' como fecha sin hora, ajustar al final del día
-    if (to.length === 10) end.setUTCHours(23, 59, 59, 999);
 
     const matchStage: Record<string, unknown> = {
       'meta.companyId': new Types.ObjectId(companyId),
       timestamp: { $gte: start, $lte: end },
     };
 
-    if (dto.branchIndex !== undefined) matchStage['meta.branchIndex'] = dto.branchIndex;
-    if (dto.radarId)                   matchStage['meta.radarId']     = new Types.ObjectId(dto.radarId);
+    this.applyBranchFilter(matchStage, dto.branchIndex, allowedBranches);
+    if (dto.radarId) {
+      if (!Types.ObjectId.isValid(dto.radarId)) throw new BadRequestException('radarId inválido');
+      matchStage['meta.radarId'] = new Types.ObjectId(dto.radarId);
+    }
 
     const groupId = this.buildGroupId(granularity as Granularity);
 
@@ -90,7 +123,7 @@ export class CountsService {
           events:    { $sum: 1 },
         },
       },
-      { $sort: { '_id.year': 1, '_id.month': 1, '_id.day': 1, '_id.hour': 1 } },
+      { $sort: { '_id.year': 1, '_id.month': 1, '_id.day': 1, '_id.hour': 1, '_id.week': 1 } },
     ];
 
     const series = await this.countModel.aggregate(pipeline);
@@ -103,14 +136,43 @@ export class CountsService {
     return { series, totals, from, to, granularity };
   }
 
+  /** Exporta las series agregadas en CSV */
+  async exportCsv(dto: CountQueryDto, allowedBranches?: number[]): Promise<string> {
+    const data = await this.query(dto, allowedBranches);
+    const headers = ['periodo', 'granularity', 'total_in', 'total_out', 'events'];
+    const rows = data.series.map((row: any) => {
+      const id = row._id;
+      let label = `${id.year}`;
+      if (id.week !== undefined) label = `${id.year}-S${String(id.week).padStart(2, '0')}`;
+      else if (id.month !== undefined && id.day !== undefined && id.hour !== undefined) {
+        label = `${id.year}-${String(id.month).padStart(2, '0')}-${String(id.day).padStart(2, '0')} ${String(id.hour).padStart(2, '0')}:00`;
+      } else if (id.month !== undefined && id.day !== undefined) {
+        label = `${id.year}-${String(id.month).padStart(2, '0')}-${String(id.day).padStart(2, '0')}`;
+      } else if (id.month !== undefined) {
+        label = `${id.year}-${String(id.month).padStart(2, '0')}`;
+      }
+      return [label, data.granularity, row.total_in, row.total_out, row.events].join(',');
+    });
+    return [headers.join(','), ...rows].join('\n');
+  }
+
   /** KPIs con caché Redis por tenant+sede (TTL 60s) */
-  async getKpis(companyId: string, branchIndex?: number) {
+  async getKpis(
+    companyId: string,
+    branchIndex?: number,
+    radarId?: string,
+    allowedBranches?: number[],
+  ) {
+    if (!Types.ObjectId.isValid(companyId)) throw new BadRequestException('companyId inválido');
+    const useCache = !radarId && !allowedBranches?.length;
     const cacheKey = branchIndex !== undefined
       ? `tenant:${companyId}:cache:kpis:${branchIndex}`
       : `tenant:${companyId}:cache:kpis:all`;
 
-    const cached = await this.redis.get(cacheKey);
-    if (cached) return JSON.parse(cached);
+    if (useCache) {
+      const cached = await this.redis.get(cacheKey);
+      if (cached) return JSON.parse(cached);
+    }
 
     const now          = new Date();
     const startOfDay   = new Date(now); startOfDay.setHours(0, 0, 0, 0);
@@ -118,26 +180,36 @@ export class CountsService {
     const startOfYear  = new Date(now.getFullYear(), 0, 1);
 
     const [today, month, year] = await Promise.all([
-      this.sumPeriod(companyId, startOfDay,   now, branchIndex),
-      this.sumPeriod(companyId, startOfMonth, now, branchIndex),
-      this.sumPeriod(companyId, startOfYear,  now, branchIndex),
+      this.sumPeriod(companyId, startOfDay,   now, branchIndex, radarId, allowedBranches),
+      this.sumPeriod(companyId, startOfMonth, now, branchIndex, radarId, allowedBranches),
+      this.sumPeriod(companyId, startOfYear,  now, branchIndex, radarId, allowedBranches),
     ]);
 
-    const peakHour = await this.getPeakHour(companyId, startOfDay, now, branchIndex);
+    const peakHour = await this.getPeakHour(companyId, startOfDay, now, branchIndex, radarId, allowedBranches);
     const result   = { today, month, year, peakHour, generatedAt: now };
 
-    await this.redis.setex(cacheKey, KPI_CACHE_TTL, JSON.stringify(result));
+    if (useCache) {
+      await this.redis.setex(cacheKey, KPI_CACHE_TTL, JSON.stringify(result));
+    }
     return result;
   }
 
-  async compare(companyId: string, from: string, to: string, branchIndex?: number) {
+  async compare(
+    companyId: string,
+    from: string,
+    to: string,
+    branchIndex?: number,
+    radarId?: string,
+    allowedBranches?: number[],
+  ) {
+    if (!Types.ObjectId.isValid(companyId)) throw new BadRequestException('companyId inválido');
     const start  = new Date(from);
-    const end    = new Date(to);
-    const diffMs = end.getTime() - start.getTime();
+    const end    = this.endOfDay(to);
+    const diffMs = Math.max(end.getTime() - start.getTime(), 86_400_000);
 
     const [current, previous] = await Promise.all([
-      this.sumPeriod(companyId, start,                         end,              branchIndex),
-      this.sumPeriod(companyId, new Date(start.getTime() - diffMs), start, branchIndex),
+      this.sumPeriod(companyId, start,                              end,   branchIndex, radarId, allowedBranches),
+      this.sumPeriod(companyId, new Date(start.getTime() - diffMs), start, branchIndex, radarId, allowedBranches),
     ]);
 
     const pct = (curr: number, prev: number) =>
@@ -151,30 +223,43 @@ export class CountsService {
   }
 
   /** Conteos discriminados por SEDE dentro de una empresa. */
-  async compareByBranch(companyId: string, from: string, to: string) {
+  async compareByBranch(
+    companyId: string,
+    from: string,
+    to: string,
+    allowedBranches?: number[],
+  ) {
+    if (!Types.ObjectId.isValid(companyId)) throw new BadRequestException('companyId inválido');
+    const match: Record<string, unknown> = {
+      'meta.companyId': new Types.ObjectId(companyId),
+      timestamp: { $gte: new Date(from), $lte: this.endOfDay(to) },
+    };
+    if (allowedBranches?.length) {
+      match['meta.branchIndex'] = { $in: allowedBranches };
+    }
+
     const pipeline: PipelineStage[] = [
-      {
-        $match: {
-          'meta.companyId': new Types.ObjectId(companyId),
-          timestamp: { $gte: new Date(from), $lte: this.endOfDay(to) },
-        },
-      },
+      { $match: match },
       { $group: { _id: '$meta.branchIndex', total_in: { $sum: '$count_in' }, total_out: { $sum: '$count_out' }, events: { $sum: 1 } } },
       { $sort: { total_in: -1 } },
     ];
     return this.countModel.aggregate(pipeline);
   }
 
-  /**
-   * Conteos discriminados por DISPOSITIVO (radar) dentro de una empresa.
-   * Opcionalmente acotado a una sede. Incluye nombre y uid del radar vía $lookup.
-   */
-  async byRadar(companyId: string, from: string, to: string, branchIndex?: number) {
+  /** Conteos discriminados por DISPOSITIVO (radar) dentro de una empresa. */
+  async byRadar(
+    companyId: string,
+    from: string,
+    to: string,
+    branchIndex?: number,
+    allowedBranches?: number[],
+  ) {
+    if (!Types.ObjectId.isValid(companyId)) throw new BadRequestException('companyId inválido');
     const match: Record<string, unknown> = {
       'meta.companyId': new Types.ObjectId(companyId),
       timestamp: { $gte: new Date(from), $lte: this.endOfDay(to) },
     };
-    if (branchIndex !== undefined) match['meta.branchIndex'] = branchIndex;
+    this.applyBranchFilter(match, branchIndex, allowedBranches);
 
     const pipeline: PipelineStage[] = [
       { $match: match },
@@ -200,10 +285,7 @@ export class CountsService {
     return this.countModel.aggregate(pipeline);
   }
 
-  /**
-   * Conteos discriminados por EMPRESA (vista global / super-admin).
-   * Incluye el nombre de la empresa vía $lookup.
-   */
+  /** Conteos discriminados por EMPRESA (vista global / super-admin). */
   async byCompany(from: string, to: string) {
     const pipeline: PipelineStage[] = [
       { $match: { timestamp: { $gte: new Date(from), $lte: this.endOfDay(to) } } },
@@ -225,19 +307,40 @@ export class CountsService {
 
   // ─── Helpers privados ──────────────────────────────────────────────────────
 
-  /** Convierte 'YYYY-MM-DD' al final del día (incluye toda la jornada). */
+  private applyBranchFilter(
+    match: Record<string, unknown>,
+    branchIndex?: number,
+    allowedBranches?: number[],
+  ) {
+    if (branchIndex !== undefined) {
+      match['meta.branchIndex'] = branchIndex;
+    } else if (allowedBranches?.length) {
+      match['meta.branchIndex'] = { $in: allowedBranches };
+    }
+  }
+
   private endOfDay(to: string): Date {
     const d = new Date(to);
     if (to.length === 10) d.setUTCHours(23, 59, 59, 999);
     return d;
   }
 
-  private async sumPeriod(companyId: string, from: Date, to: Date, branchIndex?: number) {
+  private async sumPeriod(
+    companyId: string,
+    from: Date,
+    to: Date,
+    branchIndex?: number,
+    radarId?: string,
+    allowedBranches?: number[],
+  ) {
     const match: Record<string, unknown> = {
       'meta.companyId': new Types.ObjectId(companyId),
       timestamp: { $gte: from, $lte: to },
     };
-    if (branchIndex !== undefined) match['meta.branchIndex'] = branchIndex;
+    this.applyBranchFilter(match, branchIndex, allowedBranches);
+    if (radarId && Types.ObjectId.isValid(radarId)) {
+      match['meta.radarId'] = new Types.ObjectId(radarId);
+    }
 
     const [result] = await this.countModel.aggregate([
       { $match: match },
@@ -246,12 +349,22 @@ export class CountsService {
     return result ?? { total_in: 0, total_out: 0 };
   }
 
-  private async getPeakHour(companyId: string, from: Date, to: Date, branchIndex?: number) {
+  private async getPeakHour(
+    companyId: string,
+    from: Date,
+    to: Date,
+    branchIndex?: number,
+    radarId?: string,
+    allowedBranches?: number[],
+  ) {
     const match: Record<string, unknown> = {
       'meta.companyId': new Types.ObjectId(companyId),
       timestamp: { $gte: from, $lte: to },
     };
-    if (branchIndex !== undefined) match['meta.branchIndex'] = branchIndex;
+    this.applyBranchFilter(match, branchIndex, allowedBranches);
+    if (radarId && Types.ObjectId.isValid(radarId)) {
+      match['meta.radarId'] = new Types.ObjectId(radarId);
+    }
 
     const [result] = await this.countModel.aggregate([
       { $match: match },

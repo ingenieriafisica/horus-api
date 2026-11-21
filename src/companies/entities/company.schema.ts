@@ -25,13 +25,19 @@ export class Branch {
 
 export const BranchSchema = SchemaFactory.createForClass(Branch);
 
+export const PLAN_LIMITS: Record<string, { maxBranches: number; maxRadars: number; label: string }> = {
+  starter:    { maxBranches: 2,        maxRadars: 4,        label: 'Starter' },
+  pro:        { maxBranches: 10,       maxRadars: 25,       label: 'Pro' },
+  enterprise: { maxBranches: Infinity, maxRadars: Infinity, label: 'Enterprise' },
+};
+
 // ─── User (subdocumento embebido en Company) ─────────────────────────────────
 @Schema({ _id: false })
 export class CompanyUser {
   @Prop({ required: true })
   email!: string;
 
-  @Prop({ required: true, enum: ['admin', 'manager', 'viewer'] })
+  @Prop({ required: true, enum: ['super_admin', 'admin', 'manager', 'viewer'] })
   role!: string;
 
   @Prop({ default: true })
