@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
+import { resolveCorsOrigin } from './common/cors';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
@@ -12,8 +13,9 @@ async function bootstrap() {
 
   // ── CORS ─────────────────────────────────────────────────────────────────
   app.enableCors({
-    origin: process.env.ALLOWED_ORIGINS?.split(',') ?? ['http://localhost:3000'],
+    origin: resolveCorsOrigin(process.env.ALLOWED_ORIGINS),
     credentials: true,
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
   });
 
   // ── Validación global ─────────────────────────────────────────────────────
@@ -38,7 +40,7 @@ async function bootstrap() {
 
   // ── Arranque ──────────────────────────────────────────────────────────────
   const port = process.env.PORT ?? 3001;
-  await app.listen(port);
+  await app.listen(port, '0.0.0.0');
   logger.log(`🚀 Horus API corriendo en: http://localhost:${port}/api/v1`);
   logger.log(`📚 Swagger UI: http://localhost:${port}/api/docs`);
 }

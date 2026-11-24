@@ -17,6 +17,26 @@ const { CompaniesService } = require('../dist/companies/companies.service.js');
 const { AuditService } = require('../dist/audit/audit.service.js');
 const { RadarsService } = require('../dist/radars/radars.service.js');
 const { AlertsService } = require('../dist/alerts/alerts.service.js');
+const { resolveCorsOrigin } = require('../dist/common/cors.js');
+
+describe('CORS Origin Resolution', () => {
+  it('maps wildcard * and legacy 0.0.0.0 to true (origin reflection for credentials: true)', () => {
+    assert.equal(resolveCorsOrigin('*'), true);
+    assert.equal(resolveCorsOrigin('0.0.0.0'), true);
+    assert.equal(resolveCorsOrigin('http://localhost:4200, *'), true);
+  });
+
+  it('trims whitespace and trailing slashes from comma-separated origins', () => {
+    assert.deepEqual(
+      resolveCorsOrigin(' http://localhost:4200/ , https://app.horus.co/// '),
+      ['http://localhost:4200', 'https://app.horus.co'],
+    );
+  });
+
+  it('falls back to localhost dev origins when unset', () => {
+    assert.deepEqual(resolveCorsOrigin(undefined), ['http://localhost:3000', 'http://localhost:4200']);
+  });
+});
 
 describe('Horus API NestJS 12 Bootstrap', () => {
   it('mounts all controllers, Swagger docs, and ValidationPipe cleanly', async () => {
@@ -41,7 +61,11 @@ describe('Horus API NestJS 12 Bootstrap', () => {
 
     const app = moduleRef.createNestApplication();
     app.setGlobalPrefix('api/v1');
-    app.enableCors({ origin: ['http://localhost:4200'], credentials: true });
+    app.enableCors({
+      origin: resolveCorsOrigin('0.0.0.0'),
+      credentials: true,
+      methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+    });
     app.useGlobalPipes(
       new ValidationPipe({
         whitelist: true,
@@ -70,12 +94,28 @@ describe('Horus API NestJS 12 Bootstrap', () => {
       assert.equal(docsJson.info.title, 'Horus API');
       assert.equal(Object.keys(docsJson.paths).length, 33);
 
+      const preflightRes = await fetch(`${base}/api/v1/auth/otp/request`, {
+        method: 'OPTIONS',
+        headers: {
+          Origin: 'http://localhost:4200',
+          'Access-Control-Request-Method': 'POST',
+          'Access-Control-Request-Headers': 'content-type',
+        },
+      });
+      assert.equal(preflightRes.status, 204);
+      assert.equal(preflightRes.headers.get('access-control-allow-origin'), 'http://localhost:4200');
+      assert.equal(preflightRes.headers.get('access-control-allow-credentials'), 'true');
+
       const validationRes = await fetch(`${base}/api/v1/auth/otp/request`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: {
+          'content-type': 'application/json',
+          Origin: 'http://localhost:4200',
+        },
         body: JSON.stringify({ email: 'not-an-email' }),
       });
       assert.equal(validationRes.status, 400);
+      assert.equal(validationRes.headers.get('access-control-allow-origin'), 'http://localhost:4200');
       const body = await validationRes.json();
       assert.ok(Array.isArray(body.message));
     } finally {
