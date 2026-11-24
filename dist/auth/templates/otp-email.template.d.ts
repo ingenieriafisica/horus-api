@@ -1,0 +1,16 @@
+export declare const HORUS_BRAND_ICON_CID = "horus-brand-icon@horus";
+export declare const HORUS_BRAND_ICON_PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAGAAAABgCAYAAADimHc4AAAD8ElEQVR42u1dQWrbQBTVEbwMcezKuMm0WnkR6D7QvUMPEHqA0AOEgLehCy/TnVfpNot0b/AF7BPYFzBk782Up2rMZCJpRrI1EtUTPDCWNELvSe//+RL6QVByESIaCRFNhIiehYiWQkSyZVgm5w4ORoGPRYgoFCKaChFtWki4DZuEm7AK4jtCRDP9gOfnn2QYDmWvF8qzsw/y5KTbKuCcce7gAFwYYoCrzrHIHwsRvarBB4OPstvtt45wG8AJuNFEAGfjQ8nfX/XD4YU8Pe2RbAvAEbjS74ayljPHABcXn2W/PyC5BQHOwF0iwryQJenk024OsyVdhEK2Q/IrEWHmEnBJfrUijPN8P8526PnVxAQtO+pkWg8iOAmrBlp2NEub4cYrmWpWm6Jq6WmoCzBVkywSVS20ydpUFyCu7TDw+gnIqnakVzXjegYJ8gOtdjQKknJqXFQiOX4ArhMBJkFS044reyTHD8B1IsBzoB6mtLGkXGcpWz3UCVRaRGL8QvFOASgABaAAFIACkBQKQAEICkABCApAAQgKQAEICkABGomrq6/y+vqbfHj4+Qb4D+sowJGBN8pub3/Il5c/crfbOQHbYh/sSwFK4vLyi3x6+i23260z8SawL8bAWBSgAGApNnLX67VcLBYx8Nu2PcakAA7+vlqtUgkE0Xd397k+j3XYBtumjYGxmxInGicAiEmzm7IWoiwszZaaIEKjBLi5+Z56xR/DuzFG2h2BY1KAjCv/8fGXM7muImHMJt0JjRAAaaJJPtLHvH2Q76elpPgP6/L2xdimCHWlqo0QwCQSAbTIVZwG292DY5jCtVIA0/cRMA8l31UEMzjXEQ9qF0DP3fE7zwpgLaZ1qPKDKkuYVpZnRziWefxWCWBe/Tbf160qK3iawdxmLWY88H0X1CqATqjL1ec6ozVn0EXuQt+xoDYBcPsXCbxIM12txbQqW4pqBmSfGREFaKsAtCAGYQZhpqGciHEixlIEi3EsxrEczQcyFICPJPlQngLwtRS+mEUB+GoiX86lAHw9naAAFICgABSAoAAUgKAAFICgABSAoAAUgKAA/7MA/Hi3Z5gf7+bn6z3D/Hw9Gzh4htnAgS1MPONNCxM28fGLd0182MbKL7LaWLGRmwdkNnJjK0M/yGxlyGae1cPazJPtbKsNvNZ2tmzo7IX8GVua10f+vEhP+Y4uAmNCOc/Xyc/0fRc7UtkRU1S3VFPLdtxtx9Jn/lUNiIkEbSndbrRJlsp2xsExlsSSZtrgcT0DRSVU9tpYysY549zBgVbb2V/1pSzHQYgwKVtsjAMS/ziZvpvhVrUkVdRJ8jxh2ULCl8m5T/ZVzRLLX95tl+jGVeSdAAAAAElFTkSuQmCC";
+export declare function getHorusBrandIconBuffer(): Buffer;
+export interface OtpEmailTemplateParams {
+    to: string;
+    code: string;
+    expiresInMinutes: number;
+    year?: number;
+    iconSrc?: string;
+}
+export interface OtpEmailContent {
+    subject: string;
+    html: string;
+    text: string;
+}
+export declare function buildOtpEmailTemplate({ to, code, expiresInMinutes, year, iconSrc, }: OtpEmailTemplateParams): OtpEmailContent;
